@@ -1,0 +1,21 @@
+{
+  "name": "modcorp-event-bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start:development": "npm run build && node --env-file=.env.development dist/index.js",
+    "start:production": "node --env-file=.env.production dist/index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.21.0",
+    "dotenv": "^17.2.0",
+    "enmap": "^6.0.5"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.3"
+  },
+  "type": "module",
+  "private": true
+}

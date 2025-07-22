@@ -1,0 +1,3 @@
+<component name="DependencyValidationManager">
+  <scope name="Source" pattern="file[modcorp-event-bot]:src//*||file:.env||file:package.json||file:tsconfig.json" />
+</component>
