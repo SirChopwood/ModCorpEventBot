@@ -119,67 +119,59 @@ export default class CoreModule extends DiscordBotModule {
         }
     }
 
-    async buildTeamEmbed(team: any) {
-        let embed = new Discord.EmbedBuilder()
-            .setAuthor({name: team.name, iconURL: team.logo_url})
-            .setColor(team.colour)
-            .setFields([
-                {name: "ID", value: Discord.inlineCode(team.id), inline: true},
-                {name: "Name", value: team.name, inline: true},
-                {name: "Description", value: team.description, inline: false},
-                {name: "Colour", value: Discord.inlineCode(team.colour), inline: true},
-                {name: "Logo URL", value: team.logo_url, inline: true},
-                {name: "Score", value: Discord.inlineCode(team.score), inline: true}
-            ])
-            .setThumbnail(team.logo_url)
-        if (team.discord.server && team.discord.channel && team.discord.role) {
-            const teamGuild = await this.client.guilds.fetch(team.discord.server)
-            if (teamGuild) {
-                embed.addFields([{
-                    name: "Guild (Server)",
-                    value: `**${teamGuild.name}** ${Discord.inlineCode(team.discord.server)}`,
-                    inline: false
-                }])
-            } else {
-                embed.addFields([{
-                    name: "Guild (Server)",
-                    value: `Guild Not Found! ${Discord.inlineCode(team.discord.server)}`,
-                    inline: false
-                }])
-            }
-            const teamChannel = await teamGuild.channels.fetch(team.discord.channel)
-            if (teamChannel) {
-                embed.addFields([{
-                    name: "Channel",
-                    value: `${Discord.inlineCode(teamChannel.name)} ${Discord.inlineCode(team.discord.channel)}`,
-                    inline: false
-                }])
-            } else {
-                embed.addFields([{
-                    name: "Channel",
-                    value: `Channel Not Found! ${Discord.inlineCode(team.discord.channel)}`,
-                    inline: false
-                }])
-            }
-            const teamRole = await teamGuild.roles.fetch(team.discord.role)
-            if (teamRole) {
-                embed.addFields([{
-                    name: "Role",
-                    value: `${Discord.inlineCode(teamRole.name)} ${Discord.inlineCode(team.discord.role)}`,
-                    inline: false
-                },{
-                    name: "Members",
-                    value: `${Discord.inlineCode(teamRole.members.size)}`,
-                    inline: true
-                }])
-            } else {
-                embed.addFields([{
-                    name: "Role",
-                    value: `Role Not Found! ${Discord.inlineCode(team.discord.role)}`,
-                    inline: false
-                }])
-            }
+    async buildTeamEmbed(team: Team) {
+        let message = new Discord.ContainerBuilder()
+            .setAccentColor(Discord.resolveColor(team.colour))
+            .addSectionComponents((section: Discord.SectionBuilder) => section
+                .addTextDisplayComponents([
+                    (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
+                        .setContent(`# ${team.name}\n-# ID: ${team.id}`),
+                    (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
+                        .setContent(team.description)
+                ])
+                .setThumbnailAccessory((thumbnail: Discord.ThumbnailBuilder) => thumbnail
+                    .setURL(team.logo_url)
+                )
+            )
+            .addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)
+        const teamGuild = await this.client.guilds.fetch(team.discord.server)
+        if (teamGuild) {
+            message.addTextDisplayComponents([(textDisplay: Discord.TextDisplayBuilder) => textDisplay
+                .setContent(`
+                Guild: **${teamGuild.name}**\n-# ${team.discord.server}
+                `)])
+        } else {
+            message.addTextDisplayComponents([(textDisplay: Discord.TextDisplayBuilder) => textDisplay
+                .setContent(`
+                Guild: **Guild Not Found!**\n-# ${team.discord.server}
+                `)])
         }
-        return embed
+        const teamChannel = await teamGuild.channels.fetch(team.discord.channel)
+        if (teamChannel) {
+            message.addTextDisplayComponents([(textDisplay: Discord.TextDisplayBuilder) => textDisplay
+                .setContent(`
+                Channel: **#${teamChannel.name}**\n-# ${team.discord.channel}
+                `)])
+        } else {
+            message.addTextDisplayComponents([(textDisplay: Discord.TextDisplayBuilder) => textDisplay
+                .setContent(`
+                Channel: **Channel Not Found!**\n-# ${team.discord.channel}
+                `)])
+        }
+        const teamRole = await teamGuild.roles.fetch(team.discord.role)
+        if (teamRole) {
+            message.addTextDisplayComponents([
+                (textDisplay: Discord.TextDisplayBuilder) => textDisplay
+                    .setContent(`
+                    Role: **@${teamRole.name}**\n-# ${team.discord.role}\nMember Count: ${teamRole.members.size}
+                    `)
+            ])
+        } else {
+            message.addTextDisplayComponents([(textDisplay: Discord.TextDisplayBuilder) => textDisplay
+                .setContent(`
+                Role: **Role Not Found!**\n-# ${team.discord.role}
+                `)])
+        }
+        return message
     }
 }

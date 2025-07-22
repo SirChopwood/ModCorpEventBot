@@ -145,8 +145,14 @@ export default {
         if (creationResponse.ok) {
             const newTeam = await creationResponse.json()
             embed = await bot.modules.get("teams").buildTeamEmbed(newTeam[0])
-            embed.setTitle("Team Created")
-            await interaction.editReply({embeds: [embed]});
+            await interaction.editReply({
+                content: null,
+                poll: null,
+                embeds: null,
+                stickers: null,
+                components: [embed],
+                flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
+            });
             return
         } else {
             let resMessage = await creationResponse.text()
@@ -162,10 +168,7 @@ export default {
         let targetName: string = interaction.options.getString('name')
         let targetId: number = interaction.options.getInteger("id")
 
-        let embed = new Discord.EmbedBuilder()
-            .setColor(Discord.Colors.Yellow)
-            .setTitle("Searching...")
-        await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
+        await interaction.reply({content: "Searching...", flags: Discord.MessageFlags.Ephemeral})
 
         let fetchResponse
         if (targetName) { // Search by Name
@@ -180,9 +183,14 @@ export default {
                 body: JSON.stringify({"id": targetId}),
                 headers: {"Content-type": "application/json"}
             })
-        } else if (bot.permissions.isAdmin(interaction.user)){
-            embed.setTitle("Teams Info")
-            embed.setColor(Discord.Colors.Purple)
+        } else if (bot.permissions.isAdmin(interaction.user)) {
+            let message = new Discord.ContainerBuilder()
+                .setAccentColor(Discord.Colors.Purple)
+                .addTextDisplayComponents([
+                    (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
+                        .setContent(`# Teams Info`)
+                ])
+                .addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)
 
             let leadingScoreTeam = null
             for (let team of bot.modules.get("teams").currentTeams.values()) {
@@ -193,47 +201,64 @@ export default {
 
             let ratios = await bot.modules.get("teams").getTeamRatios()
             for (let team of bot.modules.get("teams").currentTeams.values()) {
-                let teamText = ``
+                let newSection = new Discord.SectionBuilder()
+                    .setThumbnailAccessory((thumbnail: Discord.ThumbnailBuilder) => thumbnail
+                        .setURL(team.logo_url)
+                    )
+                    .addTextDisplayComponents([
+                        (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
+                            .setContent(`## ${team.name}`)
+                    ])
                 // Display the ratios of team members
                 const memberDifference = ratios.max - ratios.members[team.id]
                 if (memberDifference > 0) {
-                    teamText += `${Discord.inlineCode(memberDifference)} less member(s) than the largest, with a total of ${Discord.inlineCode(ratios.members[team.id])}.`
+                    newSection.addTextDisplayComponents([
+                        (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
+                            .setContent(`${Discord.inlineCode(memberDifference)} less member(s) than the largest, with a total of ${Discord.inlineCode(ratios.members[team.id])}.`)
+                    ])
                 } else {
-                    teamText += `Total of ${Discord.inlineCode(ratios.members[team.id])} member(s).`
+                    newSection.addTextDisplayComponents([
+                        (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
+                            .setContent(`Total of ${Discord.inlineCode(ratios.members[team.id])} member(s).`)
+                    ])
                 }
 
                 if (leadingScoreTeam.id === team.id) {
-                    teamText += `\n__Team is in the lead__ with a score of ${Discord.inlineCode(team.score)}.`
+                    newSection.addTextDisplayComponents([
+                        (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
+                            .setContent(`\n__Team is in the lead__ with a score of ${Discord.inlineCode(team.score)}.`)
+                    ])
                 } else {
-                    teamText += `\nScore: ${Discord.inlineCode(team.score)}`
+                    newSection.addTextDisplayComponents([
+                        (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
+                            .setContent(`\nScore: ${Discord.inlineCode(team.score)}`)
+                    ])
                 }
 
-                embed.addFields({
-                    name: `[${team.id}] ${team.name}`,
-                    value: teamText,
-                    inline: false
-                })
+                message.addSectionComponents(newSection)
             }
-            await interaction.editReply({embeds: [embed]});
+            await interaction.editReply({
+                content: null,
+                components: [message],
+                flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
+            });
             return
         } else {
-            embed.setTitle("Please use a team Name or ID.")
-            embed.setColor(Discord.Colors.Red)
-            await interaction.editReply({embeds: [embed]});
+            await interaction.editReply({content: "Please use a team Name or ID."});
             return
         }
 
-        if (fetchResponse.ok) {
-            const newTeam = await fetchResponse.json()
-            embed = await bot.modules.get("teams").buildTeamEmbed(newTeam)
-            embed.setTitle("Team Info")
-            await interaction.editReply({embeds: [embed]});
+        if (fetchResponse!.ok) {
+            const newTeam = await fetchResponse!.json()
+            let embed = await bot.modules.get("teams").buildTeamEmbed(newTeam)
+            await interaction.editReply({
+                components: [embed],
+                flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
+            });
             return
         } else {
-            console.log(await fetchResponse.text())
-            embed.setTitle("Failed to lookup team.")
-            embed.setColor(Discord.Colors.Red)
-            await interaction.editReply({embeds: [embed]});
+            console.log(await fetchResponse!.text())
+            await interaction.editReply({content: "Failed to lookup team."});
             return
         }
     },
@@ -285,8 +310,14 @@ export default {
         if (editResponse.ok) {
             const newTeam = await editResponse.json()
             embed = await bot.modules.get("teams").buildTeamEmbed(newTeam[0])
-            embed.setTitle("Team Edited")
-            await interaction.editReply({embeds: [embed]});
+            await interaction.editReply({
+                content: null,
+                poll: null,
+                embeds: null,
+                stickers: null,
+                components: [embed],
+                flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
+            });
             return
         } else {
             let resMessage = await editResponse.text()
@@ -330,8 +361,14 @@ export default {
         if (linkResponse.ok) {
             const newTeam = await linkResponse.json()
             embed = await bot.modules.get("teams").buildTeamEmbed(newTeam[0])
-            embed.setTitle("Team Linked")
-            await interaction.editReply({embeds: [embed]});
+            await interaction.editReply({
+                content: null,
+                poll: null,
+                embeds: null,
+                stickers: null,
+                components: [embed],
+                flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
+            });
             return
         } else {
             let resMessage = await linkResponse.text()
@@ -384,7 +421,7 @@ export default {
                     .setContent(`-# Press the button to get assigned to a team, semi-randomly.`)
             ])
 
-        await interaction.channel.send({components: [assignmentMessage], flags: Discord.MessageFlags.IsComponentsV2})
+        await interaction.channel.send({components: [assignmentMessage], flags: [Discord.MessageFlags.IsComponentsV2]})
 
         embed.setColor(Discord.Colors.Green)
         embed.setTitle("Team Assignment Board Created!")
