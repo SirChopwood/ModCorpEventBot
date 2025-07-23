@@ -2,27 +2,31 @@
 import * as Discord from "discord.js";
 import DiscordBot from "../../bot";
 import DiscordBotModule from "../../module.js";
+import {Team} from "./teams";
+import fs from "node:fs";
+import path from "path";
+import TeamsEvent from "./event";
+// @ts-ignore
+import { GoogleSpreadsheet } from 'google-spreadsheet';
+// @ts-ignore
+import { JWT } from 'google-auth-library';
 
-type Team = {
-    "id": number,
-        "name": string,
-        "description": string,
-        "colour": string,
-        "logo_url": string,
-        "discord": {
-        "role": string,
-            "channel": string,
-            "server": string,
-    }
-}
-
-export default class CoreModule extends DiscordBotModule {
+export default class TeamsModule extends DiscordBotModule {
     override name = "Teams"
     override desc = "The framework for the discord teams."
     currentTeams: Discord.Collection<string, Team> = new Discord.Collection()
+    events: Discord.Collection<string, TeamsEvent> = new Discord.Collection()
+    spreadsheet: GoogleSpreadsheet
 
     constructor(bot: DiscordBot, path: string) {
         super(bot, path);
+
+        const googleJWT = new JWT({
+            email: process.env.TEAMS_GOOGLE_EMAIL,
+            key: process.env.TEAMS_GOOGLE_PRIVATEKEY!.split(String.raw`\n`).join('\n'),
+            scopes: ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive.file'],
+        })
+        this.spreadsheet = new GoogleSpreadsheet(process.env.TEAMS_GOOGLE_SHEET, googleJWT)
 
         bot.client.on(Discord.Events.InteractionCreate, async (interaction: Discord.Interaction) => {
             if (interaction.isButton() && interaction.customId.startsWith("team")) {
@@ -34,10 +38,13 @@ export default class CoreModule extends DiscordBotModule {
     }
 
     async initialise(): Promise<void> {
-        await super.initialise();
+        await this.mountEvents()
+        await super.initialise()
+        await this.startEventTimer()
+
 
         await this.updateCurrentTeams()
-        setInterval(this.updateCurrentTeams.bind, 1000*60*60, this)
+        setInterval(this.updateCurrentTeams.bind(this), 1000*60*10)
     }
 
     async deinitialise(): Promise<void> {
@@ -173,5 +180,49 @@ export default class CoreModule extends DiscordBotModule {
                 `)])
         }
         return message
+    }
+
+    async mountEvents() {
+        const eventsPath = path.join(path.dirname(this.path), "events")
+        if (fs.existsSync(eventsPath)) {
+            const foundEvents = fs.readdirSync(eventsPath, { withFileTypes: true, recursive: true })
+                .filter(dirent => !dirent.isDirectory())
+                .map(dirent => dirent.name)
+            for (const event of foundEvents) {
+                let {default: eventClass} = await import(path.join("file://", eventsPath, event))
+                let newEvent = new eventClass(this.bot)
+                this.events.set(newEvent.name, newEvent)
+
+                this.log(`Event: ${eventClass.name} - ${eventClass.desc}`)
+            }
+        } else {
+            this.log(`No events found.`)
+        }
+    }
+
+    async startEventTimer() {
+        const timeGap = Number(process.env.TEAMS_EVENT_TIMER) // 120000ms = 2m | 900000ms = 15m | 3600000ms = 1h
+        const nextEvent = timeGap - new Date().getTime() % timeGap // Gets ms until the next time gap period
+        setTimeout(async () => {
+            setInterval(this.triggerEvent.bind(this), timeGap)
+            await this.triggerEvent()
+        }, nextEvent)
+    }
+
+    async triggerEvent() {
+        let event: TeamsEvent = this.events.random()
+        await event.prepareEvent()
+
+        for (const team of this.currentTeams.values()) {
+            if (!(team.discord.server && team.discord.channel && team.discord.role)) {continue}
+
+            const teamGuild = await this.client.guilds.fetch(team.discord.server)
+            if (!teamGuild) {continue}
+
+            const teamChannel = await teamGuild.channels.fetch(team.discord.channel)
+            if (!teamChannel) {continue}
+
+            await event.triggerEvent(team, teamGuild, teamChannel)
+        }
     }
 }
