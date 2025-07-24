@@ -1,21 +1,31 @@
 // @ts-ignore
-import {Client} from "discord.js";
+import * as Discord from "discord.js";
 import DiscordBot from "./bot.js";
 import * as fs from "node:fs";
 import path from 'path';
 
+export interface DiscordBotModuleType extends DiscordBotModule {
+    [index: string]: any
+}
 
 export default class DiscordBotModule {
-    name: string = "Untitled Module"
-    path: string = ""
-    desc: string = "No description set."
     bot: DiscordBot;
-    client: Client
+    client: Discord.Client
+    path: string = ""
+    name: string
+    desc: string
+    commandName: string
 
-    constructor(bot: DiscordBot, path: string) {
-        this.bot = bot;
-        this.client = bot.client;
-        this.path = path;
+    constructor(bot: DiscordBot, path: string, {
+        name = "Untitled Module",
+        desc = "No description set."
+    }) {
+        this.bot = bot
+        this.client = bot.client
+        this.name = name
+        this.desc = desc
+        this.path = path
+        this.commandName = this.name.toLowerCase().replace(" ", "")
     }
 
     async initialise () {
@@ -26,8 +36,16 @@ export default class DiscordBotModule {
         this.log(`Deinitialised`)
     }
 
+    async onInteraction (interaction: Discord.Interaction, customId: string) {
+    }
+
     log(...args: any[]) {
-        console.log(`[${this.name}] -`, ...args);
+        this.bot.log([this.name], ...args);
+    }
+
+    eventLog(source: Array<string>, ...args: any[]) {
+        source.push(this.name)
+        this.bot.log(source, ...args);
     }
 
     async registerCommands () {

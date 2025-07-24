@@ -5,21 +5,23 @@ import DiscordBotModule from "../../module.js";
 import {Team} from "./teams";
 import fs from "node:fs";
 import path from "path";
-import TeamsEvent from "./event";
+import {TeamsEventType} from "./event";
 // @ts-ignore
 import { GoogleSpreadsheet } from 'google-spreadsheet';
 // @ts-ignore
 import { JWT } from 'google-auth-library';
 
 export default class TeamsModule extends DiscordBotModule {
-    override name = "Teams"
-    override desc = "The framework for the discord teams."
     currentTeams: Discord.Collection<string, Team> = new Discord.Collection()
-    events: Discord.Collection<string, TeamsEvent> = new Discord.Collection()
+    events: Discord.Collection<string, TeamsEventType> = new Discord.Collection()
     spreadsheet: GoogleSpreadsheet
+    eventTimer: NodeJS.Timeout | null = null
 
     constructor(bot: DiscordBot, path: string) {
-        super(bot, path);
+        super(bot, path, {
+            name: "Teams",
+            desc: "The framework for the discord teams."
+        })
 
         const googleJWT = new JWT({
             email: process.env.TEAMS_GOOGLE_EMAIL,
@@ -37,7 +39,7 @@ export default class TeamsModule extends DiscordBotModule {
         })
     }
 
-    async initialise(): Promise<void> {
+    async initialise() {
         await this.mountEvents()
         await super.initialise()
         await this.startEventTimer()
@@ -47,8 +49,20 @@ export default class TeamsModule extends DiscordBotModule {
         setInterval(this.updateCurrentTeams.bind(this), 1000*60*10)
     }
 
-    async deinitialise(): Promise<void> {
+    async deinitialise() {
         await super.deinitialise();
+        if (this.eventTimer) {
+            clearInterval(this.eventTimer)
+        }
+    }
+
+    async onInteraction(interaction: Discord.Interaction, customId: string) {
+        const interactionCustomIds = customId.split("-")
+        if (interactionCustomIds[0] === "events"){
+            const eventInteractionCustomId = customId.replace(`events-${interactionCustomIds[1]}-`, "")
+            const eventClass = this.events.get(interactionCustomIds[1])
+            await eventClass.onInteraction(interaction, eventInteractionCustomId)
+        }
     }
 
     async getTeamRatios() {
@@ -61,7 +75,7 @@ export default class TeamsModule extends DiscordBotModule {
                 maxValue = Math.max(teamRole.members.size, maxValue)
                 memberCount[team.id] = teamRole.members.size
             } else {
-                console.log(`Skipping team [${team.id}] ${team.name} as it has not been linked yet.`)
+                this.log(`Skipping team [${team.id}] ${team.name} as it has not been linked yet.`)
             }
         }
         return {members: memberCount, max: maxValue}
@@ -105,7 +119,7 @@ export default class TeamsModule extends DiscordBotModule {
             await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
             return
         } catch (e) {
-            console.log(e)
+            this.log(e)
             embed.setTitle("Failed to assign a team.")
             embed.setDescription("Please try again later or contact a Councillor.")
             embed.setColor(Discord.Colors.Red)
@@ -190,8 +204,8 @@ export default class TeamsModule extends DiscordBotModule {
                 .map(dirent => dirent.name)
             for (const event of foundEvents) {
                 let {default: eventClass} = await import(path.join("file://", eventsPath, event))
-                let newEvent = new eventClass(this.bot)
-                this.events.set(newEvent.name, newEvent)
+                let newEvent = new eventClass(this.bot, this)
+                this.events.set(newEvent.commandName, newEvent)
 
                 this.log(`Event: ${eventClass.name} - ${eventClass.desc}`)
             }
@@ -203,14 +217,14 @@ export default class TeamsModule extends DiscordBotModule {
     async startEventTimer() {
         const timeGap = Number(process.env.TEAMS_EVENT_TIMER) // 120000ms = 2m | 900000ms = 15m | 3600000ms = 1h
         const nextEvent = timeGap - new Date().getTime() % timeGap // Gets ms until the next time gap period
-        setTimeout(async () => {
-            setInterval(this.triggerEvent.bind(this), timeGap)
+        this.eventTimer = setTimeout(async () => {
+            this.eventTimer = setInterval(this.triggerEvent.bind(this), timeGap)
             await this.triggerEvent()
         }, nextEvent)
     }
 
     async triggerEvent() {
-        let event: TeamsEvent = this.events.random()
+        let event: TeamsEventType = this.events.random()
         await event.prepareEvent()
 
         for (const team of this.currentTeams.values()) {
