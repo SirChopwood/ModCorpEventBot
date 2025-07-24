@@ -48,7 +48,7 @@ export default class TeamsEvent {
             .addSectionComponents((section: Discord.SectionBuilder) => section
                 .addTextDisplayComponents([
                     (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
-                        .setContent(`-# Team ${team.name}\n# ${this.name}\n${this.instructions}`)
+                        .setContent(`# ${this.name}\n${this.instructions}`)
                 ])
                 .setThumbnailAccessory((thumbnail: Discord.ThumbnailBuilder) => thumbnail
                     .setURL(team.logo_url)
