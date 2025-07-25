@@ -7,52 +7,41 @@ import {Team} from "../teams.js";
 import {GoogleSpreadsheetRow} from "google-spreadsheet";
 import {DiscordBotModuleType} from "../../../module";
 
-export default class TriviaQuestion extends TeamsEvent {
+export default class Anagrams extends TeamsEvent {
     currentQuestion: {
         author: string,
         reward: string,
-        image: string | null,
-        question: string,
-        correctAnswer: string,
-        correctAnswerValue: string
-        shuffledAnswers: Array<string>
+        originalWord: string,
+        shuffledWord: string,
     } | null = null
     messageReferences: Record<string, Discord.ContainerComponentBuilder> = {}
 
     constructor(bot: DiscordBot, module: DiscordBotModuleType) {
         super(bot, module, {
-            name: "Trivia",
-            desc: "A simple multiple choice question.",
-            instructions: "Read and discuss the question, then select your answer from the dropdown below. You may each answer individually."
+            name: "Anagrams",
+            desc: "Randomised orders of letters.",
+            instructions: "Decrypt and organise the letters to spell out a word or phrase."
         })
     }
 
     async prepareEvent() {
         await super.prepareEvent()
         // Prepare Google Docky
-        let {document, sheet, headers} = this.module.getSpreadsheet(1)
+        let {document, sheet, headers} = await this.module.getSpreadsheet(1)
         let questionRows: GoogleSpreadsheetRow[] = await sheet.getRows({offset: (Math.floor(Math.random() * (sheet.rowCount-2))+1), limit: 1})
         const question = questionRows[0]
 
         // Prepare Question and Answer
-        let shuffledAnswers: Array<string> = [question.get(headers[4])]
-        for (let column of [5,6,7,8,9,10]) {
-            let answer = question.get(headers[column])
-            if (answer) {
-                shuffledAnswers.push(answer)
-            }
-        }
-        this.shuffle(shuffledAnswers)
+        const originalWord = question.get(headers[2]).toLowerCase() as string
+        const shuffledWord = originalWord.toLowerCase().split("")
+        this.shuffle(shuffledWord)
 
         // Setup for Triggers
         this.currentQuestion = {
             author: question.get(headers[0]),
             reward: question.get(headers[1]),
-            image: question.get(headers[2]),
-            question: question.get(headers[3]),
-            correctAnswer: question.get(headers[4]),
-            correctAnswerValue: "",
-            shuffledAnswers: shuffledAnswers
+            originalWord: originalWord,
+            shuffledWord: shuffledWord.join(" "),
         }
         this.messageReferences = {}
         this.resetScores()
@@ -65,31 +54,16 @@ export default class TriviaQuestion extends TeamsEvent {
             let message = this.getMessageHeader(team)
             message.addTextDisplayComponents([
                 (textDisplay: Discord.TextDisplayBuilder) => textDisplay
-                    .setContent(`## ${this.currentQuestion!.question}\n-# By ${this.currentQuestion!.author}`)
+                    .setContent(`## ${this.currentQuestion!.shuffledWord}\n-# By ${this.currentQuestion!.author}`)
             ])
-            if (this.currentQuestion.image) {
-                message.addMediaGalleryComponents((mediaGallery: Discord.MediaGalleryBuilder) => mediaGallery.addItems(
-                    (mediaGalleryItem: Discord.MediaGalleryItemBuilder) => mediaGalleryItem
-                        .setDescription(this.currentQuestion!.question)
-                        .setURL(this.currentQuestion!.image)
-                ))
-            }
-            let answersSelect = new Discord.StringSelectMenuBuilder()
-                .setCustomId(`${this.module.commandName}-events-${this.commandName}-answer`)
-                .setPlaceholder("Select an Answer")
-
-            // Add answers and note which index is correct
-            this.currentQuestion.shuffledAnswers.forEach((answer, index) => {
-                answersSelect.addOptions(new Discord.StringSelectMenuOptionBuilder()
-                    .setLabel(String(answer).substring(0, 80))
-                    .setValue(String(index)))
-                if (answer === this.currentQuestion!.correctAnswer) {
-                    this.currentQuestion!.correctAnswerValue = String(index)
-                }
-            })
 
             message.addActionRowComponents((actionRow: Discord.ActionRowBuilder) =>
-                actionRow.setComponents(answersSelect)
+                actionRow.setComponents(
+                    new Discord.ButtonBuilder()
+                        .setLabel("Click to Answer!")
+                        .setStyle(Discord.ButtonStyle.Primary)
+                        .setCustomId(`${this.module.commandName}-events-${this.commandName}-open`)
+                )
             )
 
             // Send Message
@@ -104,27 +78,44 @@ export default class TriviaQuestion extends TeamsEvent {
                 AnswerUsers: [],
                 CorrectUsers: []
             }
-            this.teamRefs[team.id].messages["Main"] = sentMessage.id
+            this.teamRefs[team.id].messages["Main"] = sentMessage
         }
     }
 
     async onInteraction(interaction: Discord.Interaction, customId: string) {
         let embed = new Discord.EmbedBuilder()
-        if (customId === "answer"
-            && interaction.isStringSelectMenu()
-            && this.currentQuestion
-            && Object.keys(this.messageReferences).length > 0
-        ) {
-            for (const team of Object.values(this.teams)) {
-                if (interaction.member.roles.cache.includes(team.discord.role)) {
+        for (const team of Object.values(this.teams)) {
+            if (interaction.member.roles.cache.has(team.discord.role)) {
+                if (customId === "open" && interaction.isButton()) {
                     if (this.scores.teams[team.id].AnswerUsers.includes(interaction.user.id)) {
 
                         // DUPLICATE ANSWER
                         embed.setColor(Discord.Colors.Red)
                         embed.setTitle("You have already answered this question!")
+                        await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
                         break
 
-                    } else if (interaction.values[0] === this.currentQuestion.correctAnswerValue) {
+                    } else {
+
+                        const modal = new Discord.ModalBuilder()
+                            .setCustomId(`${this.module.commandName}-events-${this.commandName}-modal`)
+                            .setTitle("Anagrams")
+
+                        modal.addComponents(new Discord.ActionRowBuilder()
+                            .addComponents(new Discord.TextInputBuilder()
+                                .setLabel("Answer")
+                                .setCustomId(`answer-text`)
+                                .setPlaceholder("Write your answer here...")
+                                .setStyle(Discord.TextInputStyle.Short)
+                                .setRequired(true)
+                            )
+                        )
+
+                        await interaction.showModal(modal)
+                        break
+                    }
+                } else if (customId === "modal" && interaction.isModalSubmit()) {
+                    if (interaction.fields.getTextInputValue("answer-text") === this.currentQuestion!.originalWord) {
 
                         // CORRECT ANSWER
                         this.scores.teams[team.id].AnswerUsers.push(interaction.user.id)
@@ -135,6 +126,7 @@ export default class TriviaQuestion extends TeamsEvent {
                         this.log(`Correct answer from ${interaction.user.username}`)
                         embed.setColor(Discord.Colors.Green)
                         embed.setTitle("Thank you for your answer!")
+                        await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
                         break
 
                     } else {
@@ -146,17 +138,19 @@ export default class TriviaQuestion extends TeamsEvent {
                         this.log(`Incorrect answer from ${interaction.user.username}`)
                         embed.setColor(Discord.Colors.Green)
                         embed.setTitle("Thank you for your answer!")
+                        await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
                         break
 
                     }
+                } else {
+                    embed.setColor(Discord.Colors.Red)
+                    embed.setTitle("There are no anagrams right now!")
+                    embed.setDescription("If this has appeared, the bot most likely crashed, please let an Event Manager know.")
+                    await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
+                    break
                 }
             }
-        } else {
-            embed.setColor(Discord.Colors.Red)
-            embed.setTitle("There are no trivia questions right now!")
-            embed.setDescription("If this has appeared, the bot most likely crashed, please let an Event Manager know.")
         }
-        await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
     }
 
     shuffle(array: Array<any>) {
@@ -177,7 +171,7 @@ export default class TriviaQuestion extends TeamsEvent {
 
     async updateEvent(text: string) {
         for (const team of Object.values(this.teams)) {
-            this.messageReferences[team.id].components[3].components[0].setPlaceholder(text) // Editing String Select
+            this.messageReferences[team.id].components[3].components[0].setLabel(text) // Editing String Select
 
             await this.teamRefs[team.id].messages["Main"].edit({
                 components: [this.messageReferences[team.id]]
@@ -194,8 +188,8 @@ export default class TriviaQuestion extends TeamsEvent {
                 (textDisplay: Discord.TextDisplayBuilder) => textDisplay
                     .setContent(`Out of all ${this.scores.globalAnswerCount} participants, ${this.scores.globalCorrectCount} got the question right.\n**+${teamPoints} points to Team ${team.name}.**`)
             ])
-            this.messageReferences[team.id].components[3].components[0].setPlaceholder("Time's up!") // Editing String Select
-            this.messageReferences[team.id].components[3].components[0].setDisabled(true)
+            this.messageReferences[team.id].components[3].components[0].setLabel("Time's up!")
+            this.messageReferences[team.id].components[3].components[0].setDisabled(true) // Disable button
 
             await this.teamRefs[team.id].messages["Main"].edit({
                 components: [this.messageReferences[team.id]]

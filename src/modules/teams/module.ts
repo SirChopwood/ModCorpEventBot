@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "path";
 import {TeamsEventType} from "./event";
 // @ts-ignore
-import { GoogleSpreadsheet } from 'google-spreadsheet';
+import {GoogleSpreadsheet, GoogleSpreadsheetWorksheet} from 'google-spreadsheet';
 // @ts-ignore
 import { JWT } from 'google-auth-library';
 
@@ -224,19 +224,21 @@ export default class TeamsModule extends DiscordBotModule {
     }
 
     async triggerEvent() {
-        let event: TeamsEventType = this.events.random()
+        //let event: TeamsEventType = this.events.random()
+        let event: TeamsEventType = this.events.get("anagrams")
         await event.prepareEvent()
 
         for (const team of this.currentTeams.values()) {
-            if (!(team.discord.server && team.discord.channel && team.discord.role)) {continue}
-
-            const teamGuild = await this.client.guilds.fetch(team.discord.server)
-            if (!teamGuild) {continue}
-
-            const teamChannel = await teamGuild.channels.fetch(team.discord.channel)
-            if (!teamChannel) {continue}
-
-            await event.triggerEvent(team, teamGuild, teamChannel)
+            await event.triggerEvent(team)
         }
+    }
+
+    async getSpreadsheet(sheetIndex: number) {
+        const doc: GoogleSpreadsheet = this.spreadsheet
+        await doc.loadInfo()
+        let sheet: GoogleSpreadsheetWorksheet = await doc.sheetsByIndex[sheetIndex]
+        await sheet.loadHeaderRow()
+        const headers = sheet.headerValues
+        return {document: doc, sheet: sheet, headers: headers}
     }
 }
