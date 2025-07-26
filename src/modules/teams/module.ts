@@ -224,8 +224,7 @@ export default class TeamsModule extends DiscordBotModule {
     }
 
     async triggerEvent() {
-        //let event: TeamsEventType = this.events.random()
-        let event: TeamsEventType = this.events.get("anagrams")
+        let event: TeamsEventType = this.events.random()
         await event.prepareEvent()
 
         for (const team of this.currentTeams.values()) {
