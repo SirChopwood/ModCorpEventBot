@@ -207,7 +207,7 @@ export default class TeamsModule extends DiscordBotModule {
                 let newEvent = new eventClass(this.bot, this)
                 this.events.set(newEvent.commandName, newEvent)
 
-                this.log(`Event: ${eventClass.name} - ${eventClass.desc}`)
+                this.log(`Event: ${newEvent.name} - ${newEvent.desc}`)
             }
         } else {
             this.log(`No events found.`)

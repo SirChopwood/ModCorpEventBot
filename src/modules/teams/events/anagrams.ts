@@ -114,34 +114,9 @@ export default class Anagrams extends TeamsEvent {
                         await interaction.showModal(modal)
                         break
                     }
-                } else if (customId === "modal" && interaction.isModalSubmit()) {
-                    if (interaction.fields.getTextInputValue("answer-text") === this.currentQuestion!.originalWord) {
-
-                        // CORRECT ANSWER
-                        this.scores.teams[team.id].AnswerUsers.push(interaction.user.id)
-                        this.scores.teams[team.id].CorrectUsers.push(interaction.user.id)
-                        this.scores.globalAnswerCount += 1
-                        this.scores.globalCorrectCount += 1
-
-                        this.log(`Correct answer from ${interaction.user.username}`)
-                        embed.setColor(Discord.Colors.Green)
-                        embed.setTitle("Thank you for your answer!")
-                        await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
-                        break
-
-                    } else {
-
-                        // INCORRECT ANSWER
-                        this.scores.teams[team.id].AnswerUsers.push(interaction.user.id)
-                        this.scores.globalAnswerCount += 1
-
-                        this.log(`Incorrect answer from ${interaction.user.username}`)
-                        embed.setColor(Discord.Colors.Green)
-                        embed.setTitle("Thank you for your answer!")
-                        await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
-                        break
-
-                    }
+                } else if (customId === "modal" && interaction.isModalSubmit() && this.currentQuestion) {
+                    const result = interaction.fields.getTextInputValue("answer-text") === this.currentQuestion.originalWord
+                    await this.submitResult(interaction, team.id, result ? Number(this.currentQuestion.reward) : 0)
                 } else {
                     embed.setColor(Discord.Colors.Red)
                     embed.setTitle("There are no anagrams right now!")

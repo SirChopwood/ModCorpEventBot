@@ -117,38 +117,9 @@ export default class TriviaQuestion extends TeamsEvent {
         ) {
             for (const team of Object.values(this.teams)) {
                 if (interaction.member.roles.cache.includes(team.discord.role)) {
-                    if (this.scores.teams[team.id].AnswerUsers.includes(interaction.user.id)) {
-
-                        // DUPLICATE ANSWER
-                        embed.setColor(Discord.Colors.Red)
-                        embed.setTitle("You have already answered this question!")
-                        break
-
-                    } else if (interaction.values[0] === this.currentQuestion.correctAnswerValue) {
-
-                        // CORRECT ANSWER
-                        this.scores.teams[team.id].AnswerUsers.push(interaction.user.id)
-                        this.scores.teams[team.id].CorrectUsers.push(interaction.user.id)
-                        this.scores.globalAnswerCount += 1
-                        this.scores.globalCorrectCount += 1
-
-                        this.log(`Correct answer from ${interaction.user.username}`)
-                        embed.setColor(Discord.Colors.Green)
-                        embed.setTitle("Thank you for your answer!")
-                        break
-
-                    } else {
-
-                        // INCORRECT ANSWER
-                        this.scores.teams[team.id].AnswerUsers.push(interaction.user.id)
-                        this.scores.globalAnswerCount += 1
-
-                        this.log(`Incorrect answer from ${interaction.user.username}`)
-                        embed.setColor(Discord.Colors.Green)
-                        embed.setTitle("Thank you for your answer!")
-                        break
-
-                    }
+                    const result = interaction.values[0] === this.currentQuestion.correctAnswerValue
+                    await this.submitResult(interaction, team.id, result ? Number(this.currentQuestion.reward) : 0)
+                    break
                 }
             }
         } else {
