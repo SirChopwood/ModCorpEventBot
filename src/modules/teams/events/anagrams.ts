@@ -20,7 +20,7 @@ export default class Anagrams extends TeamsEvent {
         super(bot, module, {
             name: "Anagrams",
             desc: "Randomised orders of letters.",
-            instructions: "Decrypt and organise the letters to spell out a word or phrase."
+            instructions: "Decrypt and organise the letters to spell out a word or phrase. \n(Spaces are marked as an Underscore '_')"
         })
     }
 
@@ -28,20 +28,30 @@ export default class Anagrams extends TeamsEvent {
         await super.prepareEvent()
         // Prepare Google Docky
         let {document, sheet, headers} = await this.module.getSpreadsheet(1)
-        let questionRows: GoogleSpreadsheetRow[] = await sheet.getRows({offset: (Math.floor(Math.random() * (sheet.rowCount-2))+1), limit: 1})
+        let questionRows: GoogleSpreadsheetRow[] = await sheet.getRows({offset: (Math.floor(Math.random() * (sheet.rowCount-1))+1), limit: 1})
         const question = questionRows[0]
 
         // Prepare Question and Answer
         const originalWord = question.get(headers[2]).toLowerCase() as string
         const shuffledWord = originalWord.toLowerCase().split("")
+        let spaces: Array<number> = []
+        shuffledWord.forEach((letter, index) => {
+            if (letter === " ") {
+                shuffledWord.splice(index, 1)
+                spaces.push(index)
+            }
+        })
         this.shuffle(shuffledWord)
+        spaces.forEach(space => {
+            shuffledWord.splice(space, 0, "_")
+        })
 
         // Setup for Triggers
         this.currentQuestion = {
             author: question.get(headers[0]),
             reward: question.get(headers[1]),
             originalWord: originalWord,
-            shuffledWord: shuffledWord.join(" "),
+            shuffledWord: shuffledWord.join(" ")
         }
         this.messageReferences = {}
         this.resetScores()

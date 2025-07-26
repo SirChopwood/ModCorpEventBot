@@ -31,7 +31,7 @@ export default class TriviaQuestion extends TeamsEvent {
         await super.prepareEvent()
         // Prepare Google Docky
         let {document, sheet, headers} = this.module.getSpreadsheet(1)
-        let questionRows: GoogleSpreadsheetRow[] = await sheet.getRows({offset: (Math.floor(Math.random() * (sheet.rowCount-2))+1), limit: 1})
+        let questionRows: GoogleSpreadsheetRow[] = await sheet.getRows({offset: (Math.floor(Math.random() * (sheet.rowCount-1))+1), limit: 1})
         const question = questionRows[0]
 
         // Prepare Question and Answer
