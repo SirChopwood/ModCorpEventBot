@@ -13,6 +13,7 @@ export default class Anagrams extends TeamsEvent {
         reward: string,
         originalWord: string,
         shuffledWord: string,
+        hint: string
     } | null = null
     messageReferences: Record<string, Discord.ContainerComponentBuilder> = {}
 
@@ -28,8 +29,9 @@ export default class Anagrams extends TeamsEvent {
         await super.prepareEvent()
         // Prepare Google Docky
         let {document, sheet, headers} = await this.module.getSpreadsheet(1)
-        let questionRows: GoogleSpreadsheetRow[] = await sheet.getRows({offset: (Math.floor(Math.random() * (sheet.rowCount-1))+1), limit: 1})
-        const question = questionRows[0]
+        let questionRows: GoogleSpreadsheetRow[] = await sheet.getRows()
+        questionRows = questionRows.filter((value) => {return value.get(headers[2]) !== ""})
+        const question = questionRows[Math.floor(Math.random() * (questionRows.length-1))]
 
         // Prepare Question and Answer
         const originalWord = question.get(headers[2]).toLowerCase() as string
@@ -51,7 +53,8 @@ export default class Anagrams extends TeamsEvent {
             author: question.get(headers[0]),
             reward: question.get(headers[1]),
             originalWord: originalWord,
-            shuffledWord: shuffledWord.join(" ")
+            shuffledWord: shuffledWord.join(" "),
+            hint: question.get(headers[3])
         }
         this.messageReferences = {}
         this.resetScores()
@@ -64,7 +67,7 @@ export default class Anagrams extends TeamsEvent {
             let message = this.getMessageHeader(team)
             message.addTextDisplayComponents([
                 (textDisplay: Discord.TextDisplayBuilder) => textDisplay
-                    .setContent(`## ${this.currentQuestion!.shuffledWord}\n-# By ${this.currentQuestion!.author}`)
+                    .setContent(`## ${this.currentQuestion!.shuffledWord}${this.currentQuestion!.hint ? String("\nHint: "+this.currentQuestion!.hint) : ""}\n-# By ${this.currentQuestion!.author}`)
             ])
 
             message.addActionRowComponents((actionRow: Discord.ActionRowBuilder) =>
@@ -125,7 +128,7 @@ export default class Anagrams extends TeamsEvent {
                         break
                     }
                 } else if (customId === "modal" && interaction.isModalSubmit() && this.currentQuestion) {
-                    const result = interaction.fields.getTextInputValue("answer-text") === this.currentQuestion.originalWord
+                    const result = interaction.fields.getTextInputValue("answer-text").toLowerCase() === this.currentQuestion.originalWord
                     await this.submitResult(interaction, team.id, result ? Number(this.currentQuestion.reward) : 0)
                 } else {
                     embed.setColor(Discord.Colors.Red)

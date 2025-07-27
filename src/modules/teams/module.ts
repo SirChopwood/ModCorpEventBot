@@ -233,11 +233,10 @@ export default class TeamsModule extends DiscordBotModule {
     }
 
     async getSpreadsheet(sheetIndex: number) {
-        const doc: GoogleSpreadsheet = this.spreadsheet
-        await doc.loadInfo()
-        let sheet: GoogleSpreadsheetWorksheet = await doc.sheetsByIndex[sheetIndex]
+        await this.spreadsheet.loadInfo()
+        let sheet: GoogleSpreadsheetWorksheet = this.spreadsheet.sheetsByIndex[sheetIndex]
         await sheet.loadHeaderRow()
         const headers = sheet.headerValues
-        return {document: doc, sheet: sheet, headers: headers}
+        return {document: this.spreadsheet, sheet: sheet, headers: headers}
     }
 }

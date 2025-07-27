@@ -30,9 +30,10 @@ export default class TriviaQuestion extends TeamsEvent {
     async prepareEvent() {
         await super.prepareEvent()
         // Prepare Google Docky
-        let {document, sheet, headers} = this.module.getSpreadsheet(1)
-        let questionRows: GoogleSpreadsheetRow[] = await sheet.getRows({offset: (Math.floor(Math.random() * (sheet.rowCount-1))+1), limit: 1})
-        const question = questionRows[0]
+        let {document, sheet, headers} = await this.module.getSpreadsheet(0)
+        let questionRows: GoogleSpreadsheetRow[] = await sheet.getRows()
+        questionRows = questionRows.filter((value) => {return value.get(headers[3]) !== ""})
+        const question = questionRows[Math.floor(Math.random() * (questionRows.length-1))]
 
         // Prepare Question and Answer
         let shuffledAnswers: Array<string> = [question.get(headers[4])]
@@ -104,7 +105,7 @@ export default class TriviaQuestion extends TeamsEvent {
                 AnswerUsers: [],
                 CorrectUsers: []
             }
-            this.teamRefs[team.id].messages["Main"] = sentMessage.id
+            this.teamRefs[team.id].messages["Main"] = sentMessage
         }
     }
 
