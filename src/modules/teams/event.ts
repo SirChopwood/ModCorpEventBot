@@ -51,11 +51,11 @@ export default class TeamsEvent {
     }
 
     log(...args: any[]) {
-        this.module.eventLog([this.name], ...args);
+        this.module.eventLog([this.bot.chalk.greenBright(this.name)], ...args);
     }
 
     async prepareEvent() {
-        this.log(`Executing ${this.name} Event`)
+        this.log(`Executing ${this.bot.chalk.bold(this.name)} Event`)
         const eventDuration = Number(process.env.TEAMS_EVENT_DURATION) | 60000
         setTimeout(this.updateEvent.bind(this), eventDuration - 30000, "30s remaining!")
         setTimeout(this.updateEvent.bind(this), eventDuration - 10000, "10s remaining!")

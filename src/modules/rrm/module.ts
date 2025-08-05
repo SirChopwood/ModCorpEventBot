@@ -15,7 +15,8 @@ export default class RRMModule extends DiscordBotModule {
     constructor(bot: DiscordBot, path: string) {
         super(bot, path, {
             name: "RRM",
-            desc: "Rami Resource Manager - Connects to the online database, panel and overlays with Twitch Chat."
+            desc: "Rami Resource Manager - Connects to the online database, panel and overlays with Twitch Chat.",
+            colour: "magenta"
         });
     }
 

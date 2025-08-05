@@ -14,33 +14,37 @@ export default class DiscordBotModule {
     path: string = ""
     name: string
     desc: string
+    colour: string
     commandName: string
 
     constructor(bot: DiscordBot, path: string, {
         name = "Untitled Module",
-        desc = "No description set."
+        desc = "No description set.",
+        colour = "white"
     }) {
         this.bot = bot
         this.client = bot.client
         this.name = name
         this.desc = desc
+        this.colour = colour
         this.path = path
         this.commandName = this.name.toLowerCase().replace(" ", "")
     }
 
     async initialise () {
         await this.registerCommands()
-        this.log(`Initialised`)
+        this.log(this.bot.chalk.underline.bold(`Initialised!`))
     }
     async deinitialise () {
-        this.log(`Deinitialised`)
+        this.log(this.bot.chalk.underline.bold(`Deinitialised!`))
     }
 
     async onInteraction (interaction: Discord.Interaction, customId: string) {
     }
 
     log(...args: any[]) {
-        this.bot.log([this.name], ...args);
+        // @ts-ignore
+        this.bot.log([this.bot.chalk[this.colour].bold(this.name)], ...args);
     }
 
     eventLog(source: Array<string>, ...args: any[]) {
@@ -59,7 +63,7 @@ export default class DiscordBotModule {
                 let {default: commandClass} = await import(path.join("file://", commandsPath, command))
                 this.bot.commands.set(commandClass.data.toJSON().name, commandClass)
 
-                this.log(`Command: ${commandClass.data.toJSON().name} - ${commandClass.data.toJSON().description}`)
+                this.log(`${this.bot.chalk.yellow("Command")}: ${commandClass.data.toJSON().name} ${this.bot.chalk.grey("- " +commandClass.data.toJSON().description)}`)
             }
         } else {
             this.log(`No commands found.`)

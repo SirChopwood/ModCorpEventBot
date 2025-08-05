@@ -20,7 +20,8 @@ export default class TeamsModule extends DiscordBotModule {
     constructor(bot: DiscordBot, path: string) {
         super(bot, path, {
             name: "Teams",
-            desc: "The framework for the discord teams."
+            desc: "The framework for the discord teams.",
+            colour: "red"
         })
 
         const googleJWT = new JWT({
@@ -207,7 +208,7 @@ export default class TeamsModule extends DiscordBotModule {
                 let newEvent = new eventClass(this.bot, this)
                 this.events.set(newEvent.commandName, newEvent)
 
-                this.log(`Event: ${newEvent.name} - ${newEvent.desc}`)
+                this.log(`${this.bot.chalk.greenBright("Event")}: ${newEvent.name} ${this.bot.chalk.grey("- " + newEvent.desc)}`)
             }
         } else {
             this.log(`No events found.`)

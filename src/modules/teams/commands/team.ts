@@ -252,6 +252,7 @@ export default {
             const newTeam = await fetchResponse!.json()
             let embed = await bot.modules.get("teams").buildTeamEmbed(newTeam)
             await interaction.editReply({
+                content: null,
                 components: [embed],
                 flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
             });

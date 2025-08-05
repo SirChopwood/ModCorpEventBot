@@ -7,7 +7,8 @@ export default class CoreModule extends DiscordBotModule {
     constructor(bot: DiscordBot, path: string) {
         super(bot, path, {
             name: "Core",
-            desc: "Base functionality for the bot."
+            desc: "Base functionality for the bot.",
+            colour: "blue"
         });
     }
 
