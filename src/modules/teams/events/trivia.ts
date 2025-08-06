@@ -117,7 +117,7 @@ export default class TriviaQuestion extends TeamsEvent {
             && Object.keys(this.messageReferences).length > 0
         ) {
             for (const team of Object.values(this.teams)) {
-                if (interaction.member.roles.cache.includes(team.discord.role)) {
+                if (interaction.member.roles.cache.has(team.discord.role)) {
                     const result = interaction.values[0] === this.currentQuestion.correctAnswerValue
                     await this.submitResult(interaction, team.id, result ? Number(this.currentQuestion.reward) : 0)
                     break

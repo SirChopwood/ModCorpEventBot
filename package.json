@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "start:development": "npm run build && node --env-file=.env.development dist/index.js",
+    "start:development": "npm run build && node --trace-deprecation --env-file=.env.development dist/index.js",
     "start:production": "node --env-file=.env.production dist/index.js"
   },
   "dependencies": {
@@ -21,6 +21,9 @@
   },
   "devDependencies": {
     "typescript": "^5.5.3"
+  },
+  "overrides": {
+    "whatwg-url": "^14.2.0"
   },
   "type": "module",
   "private": true

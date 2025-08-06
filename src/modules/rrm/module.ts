@@ -11,6 +11,7 @@ import path from "path";
 export default class RRMModule extends DiscordBotModule {
     authProvider: RefreshingAuthProvider
     chatBot: ChatClient
+    prefix = process.env.RRM_TWITCH_PREFIX || "!"
 
     constructor(bot: DiscordBot, path: string) {
         super(bot, path, {
@@ -42,10 +43,16 @@ export default class RRMModule extends DiscordBotModule {
             authProvider: this.authProvider,
             channels: channels
         })
+
+        this.chatBot.onConnect(async () => {
+            this.log(this.bot.chalk.magenta("Connected to Twitch!"))
+        })
         await this.chatBot.connect()
 
         this.chatBot.onMessage(async (channel: string, user: string, text: string, message: ChatMessage) => {
-            this.log(`[${channel}] ${user}: ${text}`)
+            if (text.startsWith(this.prefix)) {
+                this.log(`[${this.bot.chalk.magenta(channel)}] ${this.bot.chalk.bold(user)}: ${text}`)
+            }
             await this.chatBot.say(channel, text)
         })
         await super.initialise();

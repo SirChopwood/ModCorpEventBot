@@ -29,14 +29,22 @@ export default class DiscordBotModule {
         this.colour = colour
         this.path = path
         this.commandName = this.name.toLowerCase().replace(" ", "")
+        this.log("Loaded!")
+    }
+
+    async preInit () {
+        this.log(`Initialising...`)
     }
 
     async initialise () {
         await this.registerCommands()
-        this.log(this.bot.chalk.underline.bold(`Initialised!`))
+    }
+
+    async postInit () {
+        this.log(`Initialised!\n`)
     }
     async deinitialise () {
-        this.log(this.bot.chalk.underline.bold(`Deinitialised!`))
+        this.log(`Deinitialised!`)
     }
 
     async onInteraction (interaction: Discord.Interaction, customId: string) {
@@ -48,7 +56,7 @@ export default class DiscordBotModule {
     }
 
     eventLog(source: Array<string>, ...args: any[]) {
-        source.push(this.name)
+        source.push(this.bot.chalk[this.colour].bold(this.name))
         this.bot.log(source, ...args);
     }
 

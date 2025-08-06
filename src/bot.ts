@@ -7,6 +7,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import Permissions from "./permissions.js";
 import DiscordBotModule from "./module";
+import * as util from "node:util";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -41,16 +42,25 @@ export default class DiscordBot{
 
     log(source: Array<string>, ...args: any[]) {
         source.reverse()
-        console.log(`${this.chalk.grey(new Date().toLocaleString("EN-GB", {dateStyle: "short", timeStyle: "medium"}))} [${source.join("/")}] -`, ...args);
+        const date = this.chalk.grey(new Date().toLocaleString("EN-GB", {dateStyle: "short", timeStyle: "medium"}))
+        let sources = `[${source.join("/")}]`
+        const sourcesLength = util.stripVTControlCharacters(sources).length
+        const sourcesPadding = " ".repeat(Math.max(0, 18-sourcesLength))
+        console.log(date, sourcesPadding, sources, ...args);
+    }
+    
+    botLog(...args: any[]) {
+        this.log([this.chalk.green.bold("Bot Client")], ...args)
     }
     
     async mountAllModules(desiredModules: Array<string> = JSON.parse(process.env.BOT_MODULES!)){
         const allModules = fs.readdirSync(path.join(__dirname, "./modules"), { withFileTypes: true })
             .filter(dirent => dirent.isDirectory())
             .map(dirent => dirent.name)
-        this.log([this.chalk.green.bold("Bot Client")],  `Found Modules: ${allModules}`)
+        this.botLog(`${this.chalk.blue(allModules.length)} Modules found in files.`)
 
-        this.log([this.chalk.green.bold("Bot Client")], "Loading Modules...")
+        
+        this.botLog(this.chalk.bold.underline("Loading Desired Modules..."))
         for (const desiredModule of desiredModules) {
             if (allModules.includes(desiredModule.toLowerCase())) {
                 const modulePath = path.join(
@@ -64,37 +74,48 @@ export default class DiscordBot{
                 this.modules.set(module.commandName, module)
             }
         }
-        this.log([this.chalk.green.bold("Bot Client")], "Done!")
-        this.log([this.chalk.green.bold("Bot Client")], "Initialising Modules:")
+        this.botLog(this.chalk.bold.underline.green("Done!\n"))
+        
+        
+        this.botLog(this.chalk.bold.underline("Initialising Modules..."))
         for (let key of this.modules.keys()) {
+            await this.modules.get(key).preInit()
             await this.modules.get(key).initialise()
+            await this.modules.get(key).postInit()
         }
-        this.log([this.chalk.green.bold("Bot Client")], "Compiling Commands...")
+        this.botLog(this.chalk.bold.underline.green("Done!\n"))
+        
+        
+        this.botLog(this.chalk.bold.underline("Compiling Commands..."))
         let newCommands: Array<Discord.Command> = []
         for (let command of this.commands.values()) {
             newCommands.push(command.data.toJSON())
         }
-        this.log([this.chalk.green.bold("Bot Client")], `Total Commands: ${this.chalk.blueBright(newCommands.length)}`)
-        this.log([this.chalk.green.bold("Bot Client")], "Applying to Guilds:")
+        this.botLog(`Total Commands: ${this.chalk.blueBright(newCommands.length)}\n`)
+        this.botLog(this.chalk.bold.underline.green("Done!\n"))
+        
+        
+        this.botLog(this.chalk.bold.underline("Applying to Guilds..."))
         for (let guildId of this.client.guilds.cache.keys()) {
             await this.client.application.commands.set(newCommands, guildId);
-            this.log([this.chalk.green.bold("Bot Client")], `${this.chalk.magenta(this.client.guilds.cache.get(guildId)?.name)} ${this.chalk.grey("- " + guildId)}`)
+            this.botLog(`${this.chalk.magenta(this.client.guilds.cache.get(guildId)?.name)} ${this.chalk.grey("- " + guildId)}`)
         }
+        this.botLog(this.chalk.bold.underline.green("Done!\n"))
     }
 
     async unmountModules() {
-        this.log([this.chalk.green.bold("Bot Client")], "Deinitialising Modules:")
+        this.botLog("Deinitialising Modules:")
         for (let moduleName of this.modules.keys()) {
             await this.modules.get(moduleName).deinitialise()
             this.modules.delete(moduleName)
         }
-        this.log([this.chalk.green.bold("Bot Client")], "Done!")
+        this.botLog("Done!")
     }
 
     async shutdown() {
-        this.log([this.chalk.green.bold("Bot Client")], "Shutting Down...")
+        this.botLog("Shutting Down...")
         await this.unmountModules()
-        this.log([this.chalk.green.bold("Bot Client")], "Goodbye!")
+        this.botLog("Goodbye!")
         process.exit()
     }
 
@@ -116,20 +137,20 @@ export default class DiscordBot{
             this.log([this.chalk.green.bold("Bot Client")+"/"+this.chalk.yellowBright("Command")], `Executing ${this.chalk.bold(interaction.commandName)} Command`)
             await command.execute(this, interaction);
         } catch (error) {
-            this.log([this.chalk.green.bold("Bot Client")], `Error executing ${interaction.commandName}`)
-            this.log([this.chalk.green.bold("Bot Client")], error)
+            this.botLog(`Error executing ${interaction.commandName}`)
+            this.botLog(error)
         }
     }
 
     async onJoinGuild(guild: Discord.Guild) {
-        this.log([this.chalk.green.bold("Bot Client")], `Joined Guild: ${guild.name}. Reloading modules.`)
+        this.botLog(`Joined Guild: ${guild.name}. Reloading modules.`)
         await this.unmountModules()
         await this.mountAllModules()
     }
 
     async onLogin(readyClient: Discord.Client) {
         await this.mountAllModules()
-        this.log([this.chalk.green.bold("Bot Client")], `${this.chalk.green.bold.underline("Ready!")} Logged in as ${this.chalk.bold(readyClient.user.tag)}`);
+        this.botLog(`${this.chalk.green.bold.underline("Ready!")} Logged in as ${this.chalk.bold(readyClient.user.tag)}`);
         let activityTypes: Record<string, any> = {
             "COMPETING": Discord.ActivityType.Competing,
             "LISTENING": Discord.ActivityType.Listening,
