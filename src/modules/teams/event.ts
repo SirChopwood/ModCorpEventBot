@@ -51,7 +51,7 @@ export default class TeamsEvent {
     }
 
     log(...args: any[]) {
-        this.module.eventLog([this.bot.chalk.greenBright(this.name)], ...args);
+        this.module.subLog([this.bot.chalk.redBright(this.name)], ...args);
     }
 
     async prepareEvent() {

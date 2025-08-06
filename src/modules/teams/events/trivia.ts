@@ -127,8 +127,8 @@ export default class TriviaQuestion extends TeamsEvent {
             embed.setColor(Discord.Colors.Red)
             embed.setTitle("There are no trivia questions right now!")
             embed.setDescription("If this has appeared, the bot most likely crashed, please let an Event Manager know.")
+            await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
         }
-        await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
     }
 
     shuffle(array: Array<any>) {

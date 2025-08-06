@@ -55,7 +55,7 @@ export default class DiscordBotModule {
         this.bot.log([this.bot.chalk[this.colour].bold(this.name)], ...args);
     }
 
-    eventLog(source: Array<string>, ...args: any[]) {
+    subLog(source: Array<string>, ...args: any[]) {
         source.push(this.bot.chalk[this.colour].bold(this.name))
         this.bot.log(source, ...args);
     }
@@ -71,7 +71,7 @@ export default class DiscordBotModule {
                 let {default: commandClass} = await import(path.join("file://", commandsPath, command))
                 this.bot.commands.set(commandClass.data.toJSON().name, commandClass)
 
-                this.log(`${this.bot.chalk.yellow("Command")}: ${commandClass.data.toJSON().name} ${this.bot.chalk.grey("- " +commandClass.data.toJSON().description)}`)
+                this.log(`${this.bot.chalk.yellowBright("Command")}: ${commandClass.data.toJSON().name} ${this.bot.chalk.grey("- " +commandClass.data.toJSON().description)}`)
             }
         } else {
             this.log(`No commands found.`)
