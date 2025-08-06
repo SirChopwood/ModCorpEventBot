@@ -132,8 +132,8 @@ export default class RRMModule extends DiscordBotModule {
                     }),
                     headers: {"Content-type": "application/json"}
                 })
+                const reqData = await response.json()
                 if (response.status === 200) {
-                    const reqData = await response.json()
                     let newMessage = `Added ${reqData[0].text}`
                     if (reqData[0].metadata.Source) {
                         newMessage = newMessage + ` from ${reqData[0].metadata.Source}`
@@ -141,7 +141,7 @@ export default class RRMModule extends DiscordBotModule {
                     await this.chatBot.say(channel, newMessage, {replyTo: message})
                     return
                 } else {
-                    await this.chatBot.say(channel, await response.text(), {replyTo: message})
+                    await this.chatBot.say(channel, reqData.statusMessage, {replyTo: message})
                 }
             } else {
 
