@@ -15,8 +15,10 @@ export default class RRMModule extends DiscordBotModule {
     chatBot: ChatClient
     apiClient: ApiClient
     prefix = process.env.RRM_TWITCH_PREFIX || "!"
-    session: any | null = null
-    channels = JSON.parse(process.env.RRM_TWITCH_CHANNELS!) as Array<string>
+    chatMods = JSON.parse(process.env.RRM_TWITCH_MODS!) as Array<string> || ['Ramiris_']
+    sessions: Record<string, any> = {}
+    channels = JSON.parse(process.env.RRM_TWITCH_CHANNELS!) as Array<string> || ['Ramiris_']
+    refreshTimer: NodeJS.Timeout | null = null
 
     constructor(bot: DiscordBot, path: string) {
         super(bot, path, {
@@ -29,9 +31,22 @@ export default class RRMModule extends DiscordBotModule {
     async initialise(): Promise<void> {
         // Prepare values and local file
         const botTokenPath = path.join(this.path.replace("module.js", ""), "./twitchToken.json")
-        let botTokenFile = await fs.readFile(botTokenPath, "utf8")
-        let botToken: AccessToken = JSON.parse(botTokenFile)
+        let botToken: AccessToken = {}
 
+        if (await fs.stat(botTokenPath)) {
+            let botTokenFile = await fs.readFile(botTokenPath, "utf8")
+            botToken = JSON.parse(botTokenFile)
+        } else {
+            await fs.writeFile(botTokenPath,
+                JSON.stringify({
+                    "accessToken": "",
+                    "refreshToken": "",
+                    "expiresIn": null,
+                    "obtainmentTimestamp": 0
+                }), "utf8")
+            let botTokenFile = await fs.readFile(botTokenPath, "utf8")
+            botToken = JSON.parse(botTokenFile)
+        }
 
         // Create Authentication Credentials and setup auto-refresh
         this.authProvider = new RefreshingAuthProvider({
@@ -60,6 +75,8 @@ export default class RRMModule extends DiscordBotModule {
 
         this.chatBot.onMessage(this.onMessage.bind(this))
 
+        this.refreshTimer = setInterval(this.refreshSession.bind(this), 30000)
+
         await super.initialise();
     }
 
@@ -68,24 +85,29 @@ export default class RRMModule extends DiscordBotModule {
     }
 
     async refreshSession() {
+        let requestData = []
         for await (const userName of this.channels) {
             const userData = await this.apiClient.users.getUserByName(userName)
             if (!userData) {continue}
-            let response = await fetch("https://louismayes.xyz/api/v1/rrm/session/fetch", {
-                method: "POST",
-                body: JSON.stringify({
-                    "channel": {
-                        "id": Number(userData!.id),
-                        "name": String(userData!.displayName)
-                    }
-                }),
-                headers: {"Content-type": "application/json"}
+            requestData.push({
+                "id": Number(userData!.id),
+                "name": String(userData!.displayName)
             })
-            if (!response.ok) {continue}
-            const data = await response.json()
-            this.session = data[0]
-            this.log(`Current Session set to ID ${this.bot.chalk.blue(this.session.id)}.`)
-            break
+        }
+
+        let response = await fetch("https://louismayes.xyz/api/v1/rrm/session/fetch", {
+            method: "POST",
+            body: JSON.stringify({
+                "channels": requestData
+            }),
+            headers: {"Content-type": "application/json"}
+        })
+        if (!response.ok) {return}
+        const data = await response.json()
+        for await (const sessionDataKey of Object.keys(data)) {
+            if (!data[sessionDataKey]) {continue}
+            this.sessions[sessionDataKey.toLowerCase()] = data[sessionDataKey]
+            this.log(`Current Session for ${this.bot.chalk.yellow(sessionDataKey)} set to ID ${this.bot.chalk.blue(this.sessions[sessionDataKey.toLowerCase()].id)}.`)
         }
     }
 
@@ -93,21 +115,29 @@ export default class RRMModule extends DiscordBotModule {
         if (text.startsWith(this.prefix)) {
             this.subLog([this.bot.chalk.magenta(channel)], `${this.bot.chalk.bold(user)}: ${text}`)
 
+            let isModded = false
+
+            for (let mod of this.chatMods) {
+                if (user.toLowerCase() === mod.toLowerCase()) {
+                    isModded = true
+                }
+            }
+
             const textSplit = text.replace(this.prefix, "").split(" ")
             if (textSplit[0].toLowerCase() === "dance") {
-                if (this.session.id === null) {
+                if (this.sessions[channel] === null) {
                     await this.chatBot.say(channel, `There is no session currently open, please wait until one is opened or unlocked.`, {replyTo: message})
                     return
                 }
 
                 // REPLACE WITH ACTUAL ACTIVE SONGLISTS
                 const sources: Record<string, string> = {
-                    "PyPy": "https://jd.pypy.moe",
+                    "PyPy": "https://pypysongs.varkaria.works",
                     "VRDancing": "https://database.vrdancing.club",
                     "YouTube": "https://youtube.com"
                 }
-                let newMessage = `Remember to use "#sr (id/link)" to request either a song from the world or online source. Find the songs here:`
-                for (let source of this.session.sources as string[]) {
+                let newMessage = `Remember to use "${this.prefix}sr (id/link)" to request either a song from the world or online source. Find the songs here:`
+                for (let source of this.sessions[channel].sources as string[]) {
                     if (sources[source]) {
                         newMessage = newMessage + " " + sources[source]
                     }
@@ -117,9 +147,9 @@ export default class RRMModule extends DiscordBotModule {
 
             } else if (textSplit[0].toLowerCase() === "sr") {
                 if (textSplit.length !== 2) {
-                    await this.chatBot.say(channel, `Please provide JUST the ID or Link to the song you want in the format "#sr (id/link)".`, {replyTo: message})
+                    await this.chatBot.say(channel, `Please provide JUST the ID or Link to the song you want in the format "${this.prefix}sr (id/link)".`, {replyTo: message})
                     return
-                } else if (this.session.id === null) {
+                } else if (this.sessions[channel] === null) {
                     await this.chatBot.say(channel, `There is no session currently open, please wait until one is opened or unlocked.`, {replyTo: message})
                     return
                 }
@@ -128,26 +158,37 @@ export default class RRMModule extends DiscordBotModule {
                     body: JSON.stringify({
                         "user": user,
                         "request": textSplit[1],
-                        "session": this.session.id
+                        "session": this.sessions[channel].id
                     }),
                     headers: {"Content-type": "application/json"}
                 })
-                const reqData = await response.json()
+
+                let responseData = await response.text()
+                if (responseData === "[]") {
+                    this.log(`Error while creating request!`)
+                    await this.chatBot.say(channel, "Failed to queue song, @Ramiris_ has been notified.", {replyTo: message})
+                    return
+                }
+                let responseJson = JSON.parse(responseData)
                 if (response.status === 200) {
-                    let newMessage = `Added ${reqData[0].text}`
-                    if (reqData[0].metadata.Source) {
-                        newMessage = newMessage + ` from ${reqData[0].metadata.Source}`
+                    let newMessage = `Added ${responseJson[0].text}`
+                    if (responseJson[0].metadata.Source) {
+                        newMessage = newMessage + ` from ${responseJson[0].metadata.Source}`
                     }
                     await this.chatBot.say(channel, newMessage, {replyTo: message})
                     return
                 } else {
-                    await this.chatBot.say(channel, reqData.statusMessage, {replyTo: message})
+                    await this.chatBot.say(channel, responseJson.statusMessage, {replyTo: message})
+                }
+            } else if (textSplit[0].toLowerCase() === "more" && isModded) {
+                for (let channelKey of Object.keys(this.sessions)) {
+                    if (this.sessions[channelKey].id === this.sessions[channel.toLowerCase()].id) {
+                        await this.chatBot.say(channelKey, `DJ ${user} is requesting some more songs, you can help by adding some using the ${this.prefix}sr command! Type ${this.prefix}dance for more info.`)
+                    }
                 }
             } else {
-
-                await this.chatBot.say(channel, "Unknown command.", {replyTo: message})
-
+                    this.log(`Unknown Command: ${text}`)
+                }
             }
-        }
     }
 }
