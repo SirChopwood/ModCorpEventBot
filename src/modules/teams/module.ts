@@ -131,7 +131,7 @@ export default class TeamsModule extends DiscordBotModule {
 
     async updateCurrentTeams() {
         for (const teamId of JSON.parse(process.env.TEAMS_ACTIVE!) as Array<number>) {
-            let teamRequest = await fetch("https://louismayes.xyz/api/v1/modcorp/teams/fetch", {
+            let teamRequest = await fetch(`${process.env.API_HOST}/api/v1/modcorp/teams/fetch`, {
                 method: "POST",
                 body: JSON.stringify({"id": teamId}),
                 headers: {"Content-type": "application/json"}

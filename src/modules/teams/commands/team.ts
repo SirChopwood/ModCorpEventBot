@@ -136,7 +136,7 @@ export default {
             "logo_url": interaction.options.getString("logo_url")
         }
 
-        let creationResponse = await fetch("https://louismayes.xyz/api/v1/modcorp/teams/create", {
+        let creationResponse = await fetch(`${process.env.API_HOST}/api/v1/modcorp/teams/create`, {
             method: "POST",
             body: JSON.stringify(newTeamData),
             headers: {"Content-type": "application/json"}
@@ -172,13 +172,13 @@ export default {
 
         let fetchResponse
         if (targetName) { // Search by Name
-            fetchResponse = await fetch("https://louismayes.xyz/api/v1/modcorp/teams/fetch", {
+            fetchResponse = await fetch(`${process.env.API_HOST}/api/v1/modcorp/teams/fetch`, {
                 method: "POST",
                 body: JSON.stringify({"name": targetName}),
                 headers: {"Content-type": "application/json"}
             })
         } else if (targetId) { // Search by ID
-            fetchResponse = await fetch("https://louismayes.xyz/api/v1/modcorp/teams/fetch", {
+            fetchResponse = await fetch(`${process.env.API_HOST}/api/v1/modcorp/teams/fetch`, {
                 method: "POST",
                 body: JSON.stringify({"id": targetId}),
                 headers: {"Content-type": "application/json"}
@@ -302,7 +302,7 @@ export default {
             return
         }
 
-        let editResponse = await fetch("https://louismayes.xyz/api/v1/modcorp/teams/edit", {
+        let editResponse = await fetch(`${process.env.API_HOST}/api/v1/modcorp/teams/edit`, {
             method: "POST",
             body: JSON.stringify(newTeamData),
             headers: {"Content-type": "application/json"}
@@ -353,7 +353,7 @@ export default {
         }
         newTeamData.discord.server = interaction.guild.id
 
-        let linkResponse = await fetch("https://louismayes.xyz/api/v1/modcorp/teams/edit", {
+        let linkResponse = await fetch(`${process.env.API_HOST}/api/v1/modcorp/teams/edit`, {
             method: "POST",
             body: JSON.stringify(newTeamData),
             headers: {"Content-type": "application/json"}

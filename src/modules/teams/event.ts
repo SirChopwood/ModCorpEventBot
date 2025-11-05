@@ -103,7 +103,7 @@ export default class TeamsEvent {
             await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
         } else if (reward !== 0) {
             // CORRECT ANSWER
-            let editResponse = await fetch("https://louismayes.xyz/api/v1/modcorp/teams/score", {
+            let editResponse = await fetch(`${process.env.API_HOST}/api/v1/modcorp/teams/score`, {
                 method: "POST",
                 body: JSON.stringify({
                     "token": process.env.API_TOKEN as string,
