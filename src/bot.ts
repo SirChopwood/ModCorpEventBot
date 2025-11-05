@@ -88,8 +88,17 @@ export default class DiscordBot{
         
         this.botLog(this.chalk.bold.underline("Compiling Commands..."))
         let newCommands: Array<Discord.Command> = []
-        for (let command of this.commands.values()) {
-            newCommands.push(command.data.toJSON())
+        for (let command of this.commands.keys()) {
+            let data = this.commands.get(command)
+            for (const dataSource of ["data", "data2", "data3"]) {
+                if (!data[dataSource]) {
+                    continue
+                }
+                let value = data[dataSource].toJSON()
+                if (value.name === command) {
+                    newCommands.push(value)
+                }
+            }
         }
         this.botLog(`Total Commands: ${this.chalk.blueBright(newCommands.length)}\n`)
         this.botLog(this.chalk.bold.underline.green("Done!\n"))
@@ -120,21 +129,51 @@ export default class DiscordBot{
     }
 
     async onInteraction(interaction: Discord.Interaction) {
-        if (interaction.isChatInputCommand()) { // Sends Slash Commands to be executed directly
-            await this.onSlashCommand(interaction)
+        if (interaction.isCommand()) { // Sends Application Commands to be executed directly
+            await this.onApplicationCommand(interaction)
         } else if (interaction.customId) { // Forwards buttons, selects etc to relevant module
-            const interactionModuleName = interaction.customId.split("-")[0]
-            const interactionCustomId = interaction.customId.replace(`${interactionModuleName}-`, "")
-            const interactionModule = this.modules.get(interactionModuleName)
-            await interactionModule.onInteraction(interaction, interactionCustomId)
+            await this.onComponentInteraction(interaction)
         }
     }
 
-    async onSlashCommand(interaction: Discord.ChatInputCommandInteraction) {
+    async onComponentInteraction(interaction: Discord.Interaction) {
+        const interactionModuleName = interaction.customId.split("-")[0]
+        const interactionCustomId = interaction.customId.replace(`${interactionModuleName}-`, "")
+        const interactionModule = this.modules.get(interactionModuleName)
+        try {
+            interactionModule?.log(`${this.chalk.italic(interaction.user.displayName)} triggered interaction ${interactionCustomId}`)
+            await interactionModule.onInteraction(interaction, interactionCustomId)
+        } catch (error) {
+        this.botLog(`Error executing ${interaction.commandName}`)
+        this.botLog(error)
+        }
+    }
+
+    async onApplicationCommand(interaction: Discord.ChatInputCommandInteraction) {
         const command = this.commands.get(interaction.commandName)
 
         try {
-            this.log([this.chalk.green.bold("Bot Client")+"/"+this.chalk.yellowBright("Command")], `Executing ${this.chalk.bold(interaction.commandName)} Command`)
+            const commandData = command.data.toJSON()
+            let type = ""
+            let name = ""
+            let desc = ""
+
+            switch (commandData.type) {
+                case Discord.ApplicationCommandType.ChatInput: // SLASH COMMANDS
+                    type = this.chalk.yellowBright("Slash Command")
+                    name = commandData.name
+                    desc = this.chalk.grey("- " + commandData.description)
+                    break
+                case Discord.ApplicationCommandType.User: // USER CONTEXT MENU
+                    type = this.chalk.magenta("Context (User)")
+                    name = commandData.name
+                    break
+                case Discord.ApplicationCommandType.Message: // MESSAGE CONTEXT MENU
+                    type = this.chalk.blue("Context (Message)")
+                    name = commandData.name
+                    break
+            }
+            this.log([this.chalk.green.bold("Bot Client")+"/"+type], `${this.chalk.italic(interaction.user.displayName)} executed ${name} ${desc}`)
             await command.execute(this, interaction);
         } catch (error) {
             this.botLog(`Error executing ${interaction.commandName}`)

@@ -69,9 +69,32 @@ export default class DiscordBotModule {
                 .map(dirent => dirent.name)
             for (const command of foundCommands) {
                 let {default: commandClass} = await import(path.join("file://", commandsPath, command))
-                this.bot.commands.set(commandClass.data.toJSON().name, commandClass)
+                for (const dataSource of ["data", "data2", "data3"]) {
+                    if (!commandClass[dataSource]) {continue}
+                    const commandData = commandClass[dataSource].toJSON()
+                    this.bot.commands.set(commandData.name, commandClass)
 
-                this.log(`${this.bot.chalk.yellowBright("Command")}: ${commandClass.data.toJSON().name} ${this.bot.chalk.grey("- " +commandClass.data.toJSON().description)}`)
+                    let type = ""
+                    let name = ""
+                    let desc = ""
+
+                    switch (commandData.type) {
+                        case Discord.ApplicationCommandType.ChatInput: // SLASH COMMANDS
+                            type = this.bot.chalk.yellowBright("Slash Command")
+                            name = commandData.name
+                            desc = this.bot.chalk.grey("- " + commandData.description)
+                            break
+                        case Discord.ApplicationCommandType.User: // USER CONTEXT MENU
+                            type = this.bot.chalk.magenta("Context (User)")
+                            name = commandData.name
+                            break
+                        case Discord.ApplicationCommandType.Message: // MESSAGE CONTEXT MENU
+                            type = this.bot.chalk.blue("Context (Message)")
+                            name = commandData.name
+                            break
+                    }
+                    this.log(`${type}: ${name} ${desc}`)
+                }
             }
         } else {
             this.log(`No commands found.`)
