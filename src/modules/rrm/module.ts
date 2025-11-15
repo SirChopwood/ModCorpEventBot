@@ -136,7 +136,7 @@ export default class RRMModule extends DiscordBotModule {
 
             const textSplit = text.replace(this.prefix, "").split(" ")
             if (textSplit[0].toLowerCase() === "dance") {
-                if (this.sessions[channel] === null) {
+                if (!this.sessions[channel]) {
                     await this.chatBot.say(channel, `There is no session currently open, please wait until one is opened or unlocked.`, {replyTo: message})
                     return
                 }
@@ -160,7 +160,7 @@ export default class RRMModule extends DiscordBotModule {
                 if (textSplit.length !== 2) {
                     await this.chatBot.say(channel, `Please provide JUST the ID or Link to the song you want in the format "${this.prefix}sr (id/link)".`, {replyTo: message})
                     return
-                } else if (this.sessions[channel] === null) {
+                } else if (!this.sessions[channel]) {
                     await this.chatBot.say(channel, `There is no session currently open, please wait until one is opened or unlocked.`, {replyTo: message})
                     return
                 }
