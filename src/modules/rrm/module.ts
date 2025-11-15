@@ -95,7 +95,7 @@ export default class RRMModule extends DiscordBotModule {
             })
         }
 
-        let response = await fetch("https://louismayes.xyz/api/v1/rrm/session/fetch", {
+        let response = await fetch(`${process.env.API_HOST}/api/v1/rrm/session/fetch`, {
             method: "POST",
             body: JSON.stringify({
                 "channels": requestData
@@ -104,10 +104,21 @@ export default class RRMModule extends DiscordBotModule {
         })
         if (!response.ok) {return}
         const data = await response.json()
-        for await (const sessionDataKey of Object.keys(data)) {
-            if (!data[sessionDataKey]) {continue}
-            this.sessions[sessionDataKey.toLowerCase()] = data[sessionDataKey]
-            this.log(`Current Session for ${this.bot.chalk.yellow(sessionDataKey)} set to ID ${this.bot.chalk.blue(this.sessions[sessionDataKey.toLowerCase()].id)}.`)
+        for await (const sessionDataKey of this.channels) {
+            let newData = data[sessionDataKey]
+            let oldData = this.sessions[sessionDataKey.toLowerCase()]
+
+            if (!newData && oldData) {
+                delete this.sessions[sessionDataKey.toLowerCase()]
+                this.log(`Removed ${this.bot.chalk.yellow(sessionDataKey)} from Session ID ${this.bot.chalk.red(oldData.id)}.`)
+            } else if (newData && oldData) {
+                if (newData.id === oldData.id) {continue}
+                this.sessions[sessionDataKey.toLowerCase()] = data[sessionDataKey]
+                this.log(`Updated ${this.bot.chalk.yellow(sessionDataKey)} to Session ID ${this.bot.chalk.blue(newData.id)}.`)
+            } else if (newData && !oldData) {
+                this.sessions[sessionDataKey.toLowerCase()] = data[sessionDataKey]
+                this.log(`Added ${this.bot.chalk.yellow(sessionDataKey)} to Session ID ${this.bot.chalk.green(newData.id)}.`)
+            }
         }
     }
 
@@ -153,7 +164,7 @@ export default class RRMModule extends DiscordBotModule {
                     await this.chatBot.say(channel, `There is no session currently open, please wait until one is opened or unlocked.`, {replyTo: message})
                     return
                 }
-                let response = await fetch("https://louismayes.xyz/api/v1/rrm/request/create", {
+                let response = await fetch(`${process.env.API_HOST}/api/v1/rrm/request/create`, {
                     method: "POST",
                     body: JSON.stringify({
                         "user": user,
