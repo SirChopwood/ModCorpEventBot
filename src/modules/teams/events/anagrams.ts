@@ -87,11 +87,7 @@ export default class Anagrams extends TeamsEvent {
 
             // Store refs
             this.messageReferences[team.id] = message
-            this.scores.teams[team.id] = {
-                AnswerUsers: [],
-                CorrectUsers: []
-            }
-            this.teamRefs[team.id].messages["Main"] = sentMessage
+            this.addTeam(team, sentMessage)
         }
     }
 

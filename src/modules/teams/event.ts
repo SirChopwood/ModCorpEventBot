@@ -46,7 +46,7 @@ export default class TeamsEvent {
         this.name = name
         this.desc = desc
         this.instructions = instructions
-        this.commandName = this.name.toLowerCase().replace(" ", "")
+        this.commandName = this.name.toLowerCase().replaceAll(" ", "")
         this.resetScores()
     }
 
@@ -166,5 +166,13 @@ export default class TeamsEvent {
             globalCorrectCount: 0,
             teams: {}
         }
+    }
+
+    addTeam(team: Team, message: Discord.Message) {
+        this.scores.teams[team.id] = {
+            AnswerUsers: [],
+            CorrectUsers: []
+        }
+        this.teamRefs[team.id].messages["Main"] = message
     }
 }

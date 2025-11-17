@@ -42,10 +42,10 @@ export default class DiscordBot{
 
     log(source: Array<string>, ...args: any[]) {
         source.reverse()
-        const date = this.chalk.grey(new Date().toLocaleString("EN-GB", {dateStyle: "short", timeStyle: "medium"}))
+        const date = this.chalk.grey(new Date().toLocaleString("EN-GB", {timeStyle: "medium"}))
         let sources = `[${source.join("/")}]`
         const sourcesLength = util.stripVTControlCharacters(sources).length
-        const sourcesPadding = " ".repeat(Math.max(0, 18-sourcesLength))
+        const sourcesPadding = " ".repeat(Math.max(0, 30-sourcesLength))
         console.log(date, sourcesPadding, sources, ...args);
     }
     
@@ -129,7 +129,7 @@ export default class DiscordBot{
     }
 
     async onInteraction(interaction: Discord.Interaction) {
-        if (interaction.isCommand()) { // Sends Application Commands to be executed directly
+        if (interaction.isCommand() || interaction.isAutocomplete()) { // Sends Application Commands to be executed directly
             await this.onApplicationCommand(interaction)
         } else if (interaction.customId) { // Forwards buttons, selects etc to relevant module
             await this.onComponentInteraction(interaction)
@@ -149,35 +149,48 @@ export default class DiscordBot{
         }
     }
 
-    async onApplicationCommand(interaction: Discord.ChatInputCommandInteraction) {
+    async onApplicationCommand(interaction: Discord.ChatInputCommandInteraction | Discord.AutocompleteInteraction) {
         const command = this.commands.get(interaction.commandName)
 
-        try {
-            const commandData = command.data.toJSON()
-            let type = ""
-            let name = ""
-            let desc = ""
 
-            switch (commandData.type) {
-                case Discord.ApplicationCommandType.ChatInput: // SLASH COMMANDS
-                    type = this.chalk.yellowBright("Slash Command")
-                    name = commandData.name
-                    desc = this.chalk.grey("- " + commandData.description)
-                    break
-                case Discord.ApplicationCommandType.User: // USER CONTEXT MENU
-                    type = this.chalk.magenta("Context (User)")
-                    name = commandData.name
-                    break
-                case Discord.ApplicationCommandType.Message: // MESSAGE CONTEXT MENU
-                    type = this.chalk.blue("Context (Message)")
-                    name = commandData.name
-                    break
-            }
+        const commandData = command.data.toJSON()
+        let type = ""
+        let name = ""
+        let desc = ""
+
+        switch (commandData.type) {
+            case Discord.ApplicationCommandType.ChatInput: // SLASH COMMANDS
+                type = this.chalk.yellowBright("Slash Command")
+                name = commandData.name
+                desc = this.chalk.grey("- " + commandData.description)
+                break
+            case Discord.ApplicationCommandType.User: // USER CONTEXT MENU
+                type = this.chalk.magenta("Context (User)")
+                name = commandData.name
+                break
+            case Discord.ApplicationCommandType.Message: // MESSAGE CONTEXT MENU
+                type = this.chalk.blue("Context (Message)")
+                name = commandData.name
+                break
+        }
+
+        if (interaction.isCommand()) {
             this.log([this.chalk.green.bold("Bot Client")+"/"+type], `${this.chalk.italic(interaction.user.displayName)} executed ${name} ${desc}`)
-            await command.execute(this, interaction);
-        } catch (error) {
-            this.botLog(`Error executing ${interaction.commandName}`)
-            this.botLog(error)
+            try {
+                await command.execute(this, interaction);
+            } catch (error) {
+                this.botLog(`Error executing ${interaction.commandName}`)
+                this.botLog(error)
+            }
+        } else if (interaction.isAutocomplete()) {
+            type = this.chalk.gray("Autocomplete")
+            this.log([this.chalk.green.bold("Bot Client")+"/"+type], this.chalk.gray(`${this.chalk.italic(interaction.user.displayName)} is searching in ${name}`))
+            try {
+                await command.autocomplete(this, interaction);
+            } catch (error) {
+                this.botLog(`Error autocompleting ${interaction.commandName}`)
+                this.botLog(error)
+            }
         }
     }
 

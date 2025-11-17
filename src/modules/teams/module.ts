@@ -224,8 +224,14 @@ export default class TeamsModule extends DiscordBotModule {
         }, nextEvent)
     }
 
-    async triggerEvent() {
-        let event: TeamsEventType = this.events.random()
+    async triggerEvent(eventName = "") {
+        let event: TeamsEventType
+        if (eventName !== "") {
+            event = this.events.get(eventName)
+        } else {
+            event = this.events.random()
+        }
+
         await event.prepareEvent()
 
         for (const team of this.currentTeams.values()) {
