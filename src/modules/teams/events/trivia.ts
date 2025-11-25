@@ -1,13 +1,13 @@
 // @ts-ignore
 import * as Discord from "discord.js";
 import DiscordBot from "../../../bot.js";
-import TeamsEvent from "../event.js";
+import TeamsEventQuestion from "../event_question.js";
 import {Team} from "../teams.js";
 // @ts-ignore
 import {GoogleSpreadsheetRow} from "google-spreadsheet";
 import {DiscordBotModuleType} from "../../../module";
 
-export default class TriviaQuestion extends TeamsEvent {
+export default class TriviaQuestion extends TeamsEventQuestion {
     currentQuestion: {
         author: string,
         reward: string,

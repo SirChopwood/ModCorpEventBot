@@ -15,23 +15,12 @@ export default class TeamsEvent {
     desc: string
     instructions: string
     commandName: string
-    scores: {
-        globalAnswerCount: number
-        globalCorrectCount: number
-        teams: Record<string, {
-            AnswerUsers: Array<Discord.Snowflake>
-            CorrectUsers: Array<Discord.Snowflake>
-        }>
-    }= {
-        globalAnswerCount: 0,
-        globalCorrectCount: 0,
-        teams: {}
-    }
     teamRefs: Record<string, {
         guild: Discord.Guild,
         channel: Discord.GuildTextBasedChannel,
         role: Discord.Role,
         messages: Record<string, Discord.Snowflake>
+        components: Record<Discord.Snowflake, Array<Discord.Component>>
     }> = {}
     teams: Record<string, Team> = {}
 
@@ -47,7 +36,6 @@ export default class TeamsEvent {
         this.desc = desc
         this.instructions = instructions
         this.commandName = this.name.toLowerCase().replaceAll(" ", "")
-        this.resetScores()
     }
 
     log(...args: any[]) {
@@ -80,7 +68,8 @@ export default class TeamsEvent {
             guild: teamGuild,
             channel: teamChannel,
             role: teamRole,
-            messages: {}
+            messages: {},
+            components: {}
         }
     }
 
@@ -94,54 +83,15 @@ export default class TeamsEvent {
         this.log("Event Concluded")
     }
 
-    async submitResult(interaction: Discord.Interaction, teamId: number, reward: number) {
-        let embed = new Discord.EmbedBuilder()
-        if (this.scores.teams[teamId].AnswerUsers.includes(interaction.user.id)) {
-            // DUPLICATE ANSWER
-            embed.setColor(Discord.Colors.Red)
-            embed.setTitle("You have already answered this question!")
-            await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
-        } else if (reward !== 0) {
-            // CORRECT ANSWER
-            let editResponse = await fetch(`${process.env.API_HOST}/api/v1/modcorp/teams/score`, {
-                method: "POST",
-                body: JSON.stringify({
-                    "token": process.env.API_TOKEN as string,
-                    "user_name": interaction.user.username,
-                    "user_id": interaction.user.id,
-                    "id": teamId,
-                    "score": reward,
-                    "reason": `${interaction.user.username} completed the event ${this.name}`
-                }),
-                headers: {"Content-type": "application/json"}
-            })
-
-            if (editResponse.ok) {
-                // SUCCESS
-                this.scores.teams[teamId].AnswerUsers.push(interaction.user.id)
-                this.scores.teams[teamId].CorrectUsers.push(interaction.user.id)
-                this.scores.globalAnswerCount += 1
-                this.scores.globalCorrectCount += 1
-
-                this.log(`Correct answer from ${interaction.user.username}`)
-                embed.setColor(Discord.Colors.Green)
-                embed.setTitle("Thank you for your answer!")
-                await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
-            } else {
-                // FAILED
-                this.log(`Failed to log answer for ${interaction.user.username}`)
-                embed.setColor(Discord.Colors.Red)
-                embed.setTitle("Something went wrong submitting your answer. Please Try Again!")
-            }
-        } else {
-            // INCORRECT ANSWER
-            this.scores.teams[teamId].AnswerUsers.push(interaction.user.id)
-            this.scores.globalAnswerCount += 1
-
-            this.log(`Incorrect answer from ${interaction.user.username}`)
-            embed.setColor(Discord.Colors.Green)
-            embed.setTitle("Thank you for your answer!")
-            await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
+    async getTeamMessageAndComponent(team: Team) {
+        let messageId = this.teamRefs[team.id].messages["Main"]
+        let channel = this.teamRefs[team.id].channel
+        let oldMessage = await channel.messages.fetch(messageId)
+        let comps = this.teamRefs[team.id].components[messageId]
+        return {
+            channel: channel,
+            message: oldMessage,
+            components: comps
         }
     }
 
@@ -158,21 +108,5 @@ export default class TeamsEvent {
                 )
             )
             .addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)
-    }
-
-    resetScores() {
-        this.scores = {
-            globalAnswerCount: 0,
-            globalCorrectCount: 0,
-            teams: {}
-        }
-    }
-
-    addTeam(team: Team, message: Discord.Message) {
-        this.scores.teams[team.id] = {
-            AnswerUsers: [],
-            CorrectUsers: []
-        }
-        this.teamRefs[team.id].messages["Main"] = message
     }
 }
