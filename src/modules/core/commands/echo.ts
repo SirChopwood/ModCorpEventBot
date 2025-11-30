@@ -13,6 +13,13 @@ export default {
             .setRequired(true)
         ),
     async execute(bot: DiscordBot, interaction: Discord.ChatInputCommandInteraction) {
+        if (!bot.permissions.isAdmin(interaction.user)) {
+            let embed = new Discord.EmbedBuilder()
+                .setColor(Discord.Colors.Red)
+                .setTitle("You do not have permission for this!")
+            await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral});
+        }
+
         await interaction.reply({
             content: "Echoing...",
             flags: [Discord.MessageFlags.Ephemeral]

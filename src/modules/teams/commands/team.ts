@@ -29,6 +29,14 @@ export default {
                 .setDescription('A logo for the team in the form of a url link to an image.')
                 .setRequired(true)
             )
+            .addRoleOption((option: Discord.SlashCommandRoleOption) => option
+                .setName('role')
+                .setDescription('The Role that this team is represented by.')
+                .setRequired(true))
+            .addChannelOption((option: Discord.SlashCommandChannelOption) => option
+                .setName('channel')
+                .setDescription('The Channel that this team will view.')
+                .setRequired(true))
         )
         .addSubcommand((subcommand: Discord.SlashCommandBuilder) => subcommand
             .setName('info')
@@ -126,14 +134,22 @@ export default {
             .setTitle("Creating team...")
         await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
 
-        let newTeamData: Record<string, string> = {
+        let newRole = interaction.options.getRole("role")
+        let newChannel = interaction.options.getChannel("channel")
+
+        let newTeamData: Record<string, string | object> = {
             "token": process.env.API_TOKEN as string,
             "user_name": interaction.user.username,
             "user_id": interaction.user.id,
             "name": interaction.options.getString("name"),
             "description": interaction.options.getString("description"),
             "colour": interaction.options.getString("colour"),
-            "logo_url": interaction.options.getString("logo_url")
+            "logo_url": interaction.options.getString("logo_url"),
+            "discord": {
+                "role": String(newRole.id),
+                "channel": String(newChannel.id),
+                "server": String(interaction.guildId),
+            }
         }
 
         let creationResponse = await fetch(`${process.env.API_HOST}/api/v1/modcorp/teams/create`, {
@@ -394,26 +410,30 @@ export default {
             .addSectionComponents((section: Discord.SectionBuilder) => section
                 .addTextDisplayComponents([
                     (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
-                        .setContent(`# Welcome to Camp Neko!\n## We're so happy you decided to come back.\n\nBefore we begin, please just go ahead and sign our little waiver and you can head straight on in. Make sure to say hi to your new team.\n\nTeams are semi-randomly assigned regardless of previous years, we will not be making any changes so please try to get along. If you have any questions, please direct them towards your Team Leaders or the Camp Councillors.`)
+                        //.setContent(`# Welcome to Camp Neko!\n## We're so happy you decided to come back.\n\nBefore we begin, please just go ahead and sign our little waiver and you can head straight on in. Make sure to say hi to your new team.\n\nTeams are semi-randomly assigned regardless of previous years, we will not be making any changes so please try to get along. If you have any questions, please direct them towards your Team Leaders or the Camp Councillors.`)
+                        .setContent(`# Welcome to the Totless Community Christmas Event 2025!\n\nTeams are semi-randomly assigned regardless of previous years, we will not be making any changes so please try to get along. If you have any questions, please direct them towards the Event Managers.`)
                 ])
                 .setThumbnailAccessory((thumbnail: Discord.ThumbnailBuilder) => thumbnail
-                    .setURL("https://cdn.discordapp.com/attachments/1395279350403960922/1395538181675290645/CampNeko.png?ex=687acfb6&is=68797e36&hm=13196c4861058aad02b8f21cfe6d06ebd443444f60e0f9e7dfac997f957a0e4d&")
+                    // .setURL("https://cdn.discordapp.com/attachments/1395279350403960922/1395538181675290645/CampNeko.png?ex=687acfb6&is=68797e36&hm=13196c4861058aad02b8f21cfe6d06ebd443444f60e0f9e7dfac997f957a0e4d&")
+                    .setURL("https://cdn.discordapp.com/attachments/1170854273995771996/1444512898004291675/christmas_modcorp.png")
                 )
             )
             .addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)
-            .addTextDisplayComponents([
-                (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
-                    .setContent(`I, *(insert name here)*, Camper.\n\nHereby sign away any liability of ModCorp for my activities and wellbeing at Camp Neko.\nAny and all actions related to and including... Woodchipping, Gas Leaks and Acts of God are in no way the fault of ModCorp and any results of such events are entirely the responsibility of the the Camper.`)
-            ])
+            // .addTextDisplayComponents([
+            //     (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
+            //         .setContent(`I, *(insert name here)*, Camper.\n\nHereby sign away any liability of ModCorp for my activities and wellbeing at Camp Neko.\nAny and all actions related to and including... Woodchipping, Gas Leaks and Acts of God are in no way the fault of ModCorp and any results of such events are entirely the responsibility of the the Camper.`)
+            // ])
             .addSectionComponents((section: Discord.SectionBuilder) => section
                 .addTextDisplayComponents([
                     (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
-                        .setContent(`Signed:`)
+                        // .setContent(`Signed:`)
+                        .setContent(`Click here to begin! =>`)
                 ])
                 .setButtonAccessory((button: Discord.ButtonBuilder) => button
                     .setStyle(Discord.ButtonStyle.Primary)
-                    .setCustomId("team-assignment")
-                    .setLabel("Sign Here!")
+                    .setCustomId("teams-assignment")
+                    //.setLabel("Sign Here!")
+                    .setLabel("Join a Team!")
                 )
             )
             .addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)

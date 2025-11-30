@@ -144,7 +144,7 @@ export default class DiscordBot{
             interactionModule?.log(`${this.chalk.italic(interaction.user.displayName)} triggered interaction ${interactionCustomId}`)
             await interactionModule.onInteraction(interaction, interactionCustomId)
         } catch (error) {
-        this.botLog(`Error executing ${interaction.commandName}`)
+        this.botLog(`Error executing ${interaction.customId}`)
         this.botLog(error)
         }
     }

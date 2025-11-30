@@ -11,8 +11,15 @@ export default {
         .setType(ApplicationCommandType.User),
     data2: new Discord.SlashCommandBuilder()
         .setName('award')
-        .setDescription("Award an achievement to a user"),
+        .setDescription("[Admin] Award an achievement to a user"),
     async execute(bot: DiscordBot, interaction: Discord.Interaction) {
+        if (!bot.permissions.isAdmin(interaction.user)) {
+            let embed = new Discord.EmbedBuilder()
+                .setColor(Discord.Colors.Red)
+                .setTitle("You do not have permission for this!")
+            await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral});
+        }
+
         let achievementsRes = await fetch(`${process.env.API_HOST}/api/v1/modcorp/achievements/fetch`, {
             method: "POST",
             body: JSON.stringify({"all": true}),

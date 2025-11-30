@@ -10,12 +10,13 @@ import {TeamsEventType} from "./event";
 import {GoogleSpreadsheet, GoogleSpreadsheetWorksheet} from 'google-spreadsheet';
 // @ts-ignore
 import { JWT } from 'google-auth-library';
+import EventScheduler from "./scheduler.js";
 
 export default class TeamsModule extends DiscordBotModule {
     currentTeams: Discord.Collection<string, Team> = new Discord.Collection()
     events: Discord.Collection<string, TeamsEventType> = new Discord.Collection()
     spreadsheet: GoogleSpreadsheet
-    eventTimer: NodeJS.Timeout | null = null
+    scheduler: EventScheduler | null = null;
 
     constructor(bot: DiscordBot, path: string) {
         super(bot, path, {
@@ -30,31 +31,28 @@ export default class TeamsModule extends DiscordBotModule {
             scopes: ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive.file'],
         })
         this.spreadsheet = new GoogleSpreadsheet(process.env.TEAMS_GOOGLE_SHEET, googleJWT)
-
-        bot.client.on(Discord.Events.InteractionCreate, async (interaction: Discord.Interaction) => {
-            if (interaction.isButton() && interaction.customId.startsWith("team")) {
-                if (interaction.customId.endsWith("assignment")) {
-                    await this.assignRandomTeam(interaction)
-                }
-            }
-        })
     }
 
     async initialise() {
         await this.mountEvents()
         await super.initialise()
-        await this.startEventTimer()
 
+        let schedulerPath = process.env.TEAMS_SCHEDULER || "timer.js"
+        let {default: scheduler} = await import(path.join("file://", path.dirname(this.path), "schedulers", schedulerPath))
+        this.scheduler = new scheduler(this.bot, this)
+        if (this.scheduler !== null) {
+            await this.scheduler.start()
+        }
 
         await this.updateCurrentTeams()
         setInterval(this.updateCurrentTeams.bind(this), 1000*60*10)
     }
 
     async deinitialise() {
-        await super.deinitialise();
-        if (this.eventTimer) {
-            clearInterval(this.eventTimer)
+        if (this.scheduler !== null) {
+            await this.scheduler.stop()
         }
+        await super.deinitialise();
     }
 
     async onInteraction(interaction: Discord.Interaction, customId: string) {
@@ -63,6 +61,8 @@ export default class TeamsModule extends DiscordBotModule {
             const eventInteractionCustomId = customId.replace(`events-${interactionCustomIds[1]}-`, "")
             const eventClass = this.events.get(interactionCustomIds[1])
             await eventClass.onInteraction(interaction, eventInteractionCustomId)
+        } else if (interactionCustomIds[0] === "assignment"){
+            await this.assignRandomTeam(interaction)
         }
     }
 
@@ -122,7 +122,7 @@ export default class TeamsModule extends DiscordBotModule {
         } catch (e) {
             this.log(e)
             embed.setTitle("Failed to assign a team.")
-            embed.setDescription("Please try again later or contact a Councillor.")
+            embed.setDescription("Please try again later or contact an Event Manager.")
             embed.setColor(Discord.Colors.Red)
             await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
             return
@@ -208,35 +208,52 @@ export default class TeamsModule extends DiscordBotModule {
                 let newEvent = new eventClass(this.bot, this)
                 this.events.set(newEvent.commandName, newEvent)
 
-                this.log(`${this.bot.chalk.greenBright("Event")}: ${newEvent.name} ${this.bot.chalk.grey("- " + newEvent.desc)}`)
+                this.log(`${this.bot.chalk.greenBright("Event")}: ${newEvent.name} ${this.bot.chalk.grey(`(${newEvent.commandName}) - ${newEvent.desc}`)}`)
             }
         } else {
             this.log(`No events found.`)
         }
     }
 
-    async startEventTimer() {
-        const timeGap = Number(process.env.TEAMS_EVENT_TIMER) // 120000ms = 2m | 900000ms = 15m | 3600000ms = 1h
-        const nextEvent = timeGap - new Date().getTime() % timeGap // Gets ms until the next time gap period
-        this.eventTimer = setTimeout(async () => {
-            this.eventTimer = setInterval(this.triggerEvent.bind(this), timeGap)
-            await this.triggerEvent()
-        }, nextEvent)
-    }
+    async triggerEvent(eventNames: Array<string> = [], invert: boolean = false) {
+        let eventName = ""
+        try {
+            let event: TeamsEventType
+            if (eventNames.length === 0) {
+                event = this.events.random()
+                eventName = event.commandName
+            } else if (invert) {
+                let events = this.events.keys().toArray()
+                while (true) {
+                    eventName = events[Math.floor(Math.random()*(events.length - 1))]
+                    if (!eventNames.includes(eventName)) {
+                        break
+                    }
+                }
+                event = this.events.get(eventName)
+            } else if (eventNames.length === 1) {
+                eventName = eventNames[0]
+                event = this.events.get(eventName)
+            } else {
+                eventName = eventNames[Math.floor(Math.random()*(eventNames.length - 1))]
+                event = this.events.get(eventName)
+            }
+            if (!event) {
+                this.log(`Invalid Event given (${this.bot.chalk.redBright(eventName)}), cancelling trigger.`)
+                return
+            }
 
-    async triggerEvent(eventName = "") {
-        let event: TeamsEventType
-        if (eventName !== "") {
-            event = this.events.get(eventName)
-        } else {
-            event = this.events.random()
+            await event.prepareEvent()
+
+            for (const team of this.currentTeams.values()) {
+                await event.triggerEvent(team)
+            }
+        } catch (e) {
+            this.log(`Error Triggering ${this.bot.chalk.redBright(eventName)}`)
+            this.log(e)
+            return
         }
 
-        await event.prepareEvent()
-
-        for (const team of this.currentTeams.values()) {
-            await event.triggerEvent(team)
-        }
     }
 
     async getSpreadsheet(sheetIndex: number) {

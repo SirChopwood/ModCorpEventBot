@@ -269,6 +269,70 @@ export default class TriviaQuestion extends TeamsEvent {
             uncontested: "No opponents? No problem. Tale starts commentating his own imaginary snowball fight, he of course won all the battles."
         },
         difficulty: 83
+    }, {
+        titleCard: {
+            intro: "'hm...Are you on my list?' The skeletal and ghostly figured states as it blocks your path. You can feel it's burning gaze, judging you...",
+            name: "Skul",
+            title: "Wraith of Judgement",
+            image: "https://cdn.discordapp.com/attachments/979793704195874847/1444421534931222588/Skul_Edit.png",
+        },
+        results: {
+            victory: "'you may go...for now...' as quickly as it appeared it disappears with out a trace. Team {name} Sighing with relief",
+            defeat: "'How unfortunate...' Regardless of their effort, team {name} had no chance. As the Wraith melted down all the snow with it's ghostly flames, Team {name} had no choice but to run away",
+            allGather: "Regardless of doing the best you could, the snow melted as quickly as they could gather it...they are at lest getting a workout I guess... ",
+            allThrow: " As they line up ready to aim and throw, the snow melted in their hand, turning into steam before hitting the ground, leaving Team {name} with nothing to continue their attack against the Wraith...",
+            allShield: "Even with protective snow walls, they melted and crumble into a muddy puddle. leaving Team {name} fully expose to the Wraith's attack...",
+            uncontested: "With no one to challenge it, the Wraith pass judgment among Team {name} , 'Disappointing ...'"
+        },
+        difficulty: 90
+    }, {
+        titleCard: {
+            intro: "The savory aroma of Little Nero’s Pizza from the kitchen makes your stomcach grumble, you hear another's behind you as you turn around to a smelly pink cat...",
+            name: "Lil_Todo",
+            title: "The Pink One",
+            image: "https://cdn.discordapp.com/attachments/817061695406604330/1444445166328090808/YO_MOMMA.png",
+        },
+        results: {
+            victory: "Ow that kinda hurts you guys win, I didin't really wanna get up anyways im going back to bed.",
+            defeat: "Team {name} fought with all their might but the pink cat's YO MAMA! was just too strong...",
+            allGather: "'Damn there is a lot of you guys... Sucks none of you are gonna do anything! Anyways thanks for the pizza!'",
+            allThrow: "'Wha- what are you guys doing? Are you like trying to dance or something? Are you supposed to be throwing something at me? Oh! I get it, you want me to take all the pizza! Sure i'll eat all of it.'",
+            allShield: "Team {name} holds off todo for some time... But the pink cat's stench grew making them fold onto one another allowing todo to take all the pizza for themself...",
+            uncontested: "'I mean if you wanna leave it unprotected im ok with that, but im going back to bed after this last slice of pizza...'"
+        },
+        difficulty: 40
+    }, {
+        titleCard: {
+            intro: "You Hear a ring... You remember you seem to remember setting an alarm, right?",
+            name: "The Child",
+            title: "Defeat the baby",
+            image: "https://cdn.discordapp.com/attachments/1206312191326822441/1444438537679147150/defeat_the_baby.png"
+        },
+        results: {
+            victory: "You beat up an infant, congratulations, you are a monster!",
+            defeat: "Team {name} somehow got defeated by... a newborn... How??",
+            allGather: "Why are you even gathering anything?!? It's a BABY just D R O P  I T",
+            allThrow: "What are you doing?! What are you even throwing????",
+            allShield: "Guys... It's a baby... It cant hurt you...",
+            uncontested: "The child remains undefeated.."
+        },
+        difficulty: 20
+    }, {
+        titleCard: {
+            intro: "The world shatters apart as angelic music rings loudly in your skull. Your Judgement Day has arrived...",
+            name: "Archangel Scaler",
+            title: "The Wrath of God",
+            image: "https://media.discordapp.net/attachments/1073122341854400593/1443373565482237982/image.png",
+        },
+        results: {
+            victory: "Team {name} Rejects the Archangel's preachings with a barrage of snowballs and lewd jokes. Temporarily defeated, he retreats back to the heavens in wait for the 2nd coming.",
+            defeat: "'Your judgment hath always been inevitable all ye unfaithful!' The archangel raises his hand high with a sudden flash of holy light. In an instant the battlefield is wiped clean.",
+            allGather: "'Your offerings hath no meaning to me! All that matters is your judgment.'",
+            allThrow: "'Like false scriptures, your throws mean naught without proper ammo...'",
+            allShield: "Team {name} prepares a mighty wall of defense! But against the archangel's holy flames, it crumbles like a pillar of salt...",
+            uncontested: "'No retorts or excuses? Perhaps in the face of judgment you realize your unrighteousness... A shame it's too late for you.'"
+        },
+        difficulty: 66
     }]
     currentBoss: BossType
 
@@ -400,126 +464,156 @@ export default class TriviaQuestion extends TeamsEvent {
 
     async updateEvent(text: string) {
         for (const team of Object.values(this.teams)) {
-            let {channel, message, components} = await this.getTeamMessageAndComponent(team)
-            let newComps: Discord.ContainerBuilder = components[0]
+            try {
+                let {channel, message, components} = await this.getTeamMessageAndComponent(team)
+                let newComps: Discord.ContainerBuilder = components[0]
 
-            if (newComps.components[7]) {
-                newComps.spliceComponents(7, 1)
+                if (newComps.components[7]) {
+                    newComps.spliceComponents(7, 1)
+                }
+
+                newComps.addTextDisplayComponents([
+                    (textDisplay: Discord.TextDisplayBuilder) => textDisplay
+                        .setContent(text)
+                ])
+                await message.edit({components: [newComps]})
+            } catch (e) {
+                this.log(`Failed to update event for team ${team.name}`)
             }
-
-            newComps.addTextDisplayComponents([
-                (textDisplay: Discord.TextDisplayBuilder) => textDisplay
-                    .setContent(text)
-            ])
-            await message.edit({components: [newComps]})
         }
     }
 
     async finishEvent() {
         for (const team of Object.values(this.teams)) {
-            let {channel, message, components} = await this.getTeamMessageAndComponent(team)
-            let newComps: Discord.ContainerBuilder = components[0]
-            if (newComps.components[7]) {
-                newComps.spliceComponents(7, 1)
+            try {
+                await this.finishTeam(team)
+            } catch (e) {
+                this.log(`Failed to finish event for team ${team.name}`)
             }
+        }
+    }
 
-            newComps.components[6].components[0].setDisabled(true)
-            newComps.components[6].components[1].setDisabled(true)
-            newComps.components[6].components[2].setDisabled(true)
+    async finishTeam(team: Team) {
+        let {channel, message, components} = await this.getTeamMessageAndComponent(team)
+        let newComps: Discord.ContainerBuilder = components[0]
+        if (newComps.components[7]) {
+            newComps.spliceComponents(7, 1)
+        }
 
-            newComps.addTextDisplayComponents([
-                (textDisplay: Discord.TextDisplayBuilder) => textDisplay
-                    .setContent("The battle has ended...")
-            ])
-            await message.edit({components: [newComps]})
+        newComps.components[6].components[0].setDisabled(true)
+        newComps.components[6].components[1].setDisabled(true)
+        newComps.components[6].components[2].setDisabled(true)
 
-            // Add logic for calculating winner here
-            let ratios: Discord.Collection = new Discord.Collection()
-            ratios.set("gather", 0)
-            ratios.set("throw", 0)
-            ratios.set("shield", 0)
-            let roleGap = 0
-            let playerCount = 0
-            for (const entry of this.participants.values()) {
-                if (entry.team === team.id) {
-                    ratios.set(entry.role, ratios.get(entry.role) + 1)
-                    playerCount += 1
-                }
+        newComps.addTextDisplayComponents([
+            (textDisplay: Discord.TextDisplayBuilder) => textDisplay
+                .setContent("The battle has ended...")
+        ])
+        await message.edit({components: [newComps]})
+
+        // Add logic for calculating winner here
+        let ratios: Discord.Collection = new Discord.Collection()
+        ratios.set("gather", 0)
+        ratios.set("throw", 0)
+        ratios.set("shield", 0)
+        let roleGap = 0
+        let playerCount = 0
+        for (const entry of this.participants.values()) {
+            if (entry.team === team.id) {
+                ratios.set(entry.role, ratios.get(entry.role) + 1)
+                playerCount += 1
             }
+        }
 
-            if (playerCount === 0) {
-                let resultMessage = new Discord.ContainerBuilder()
-                    .setAccentColor(Discord.resolveColor(team.colour))
-                    .addTextDisplayComponents([
-                        (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
-                            .setContent(`# Defeat!`),
-                        (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
-                            .setContent(this.currentBoss.results.uncontested.replaceAll("{name}", team.name))
-                    ])
-                let sentMessage = await channel.send({
-                    components: [resultMessage],
-                    flags: [Discord.MessageFlags.IsComponentsV2]
-                })
-                return
-            }
-
-            let sortedRatios = ratios.values().toArray().sort()
-            console.log(sortedRatios)
-            roleGap = Math.abs(sortedRatios[0] - sortedRatios[sortedRatios.length - 1])
-            console.log(roleGap)
-
-            let resultText = "Defeat"
-            let resultDesc = this.currentBoss.results.defeat.replaceAll("{name}", team.name)
-
-            if (ratios.get("gather") === 0 && ratios.get("gather") === 0) {
-                resultDesc = this.currentBoss.results.allShield.replaceAll("{name}", team.name)
-                this.log(`All players went with Shield => Defeat`)
-            } else if (ratios.get("shield") === 0 && ratios.get("throw") === 0) {
-                resultDesc = this.currentBoss.results.allGather.replaceAll("{name}", team.name)
-                this.log(`All players went with Gather => Defeat`)
-            } else if (ratios.get("shield") === 0 && ratios.get("gather") === 0) {
-                resultDesc = this.currentBoss.results.allThrow.replaceAll("{name}", team.name)
-                this.log(`All players went with Throw => Defeat`)
-            } else {
-                let roll = Math.round(Math.random()*100)
-                let modifier = Math.max(30 - ((roleGap + (10 - playerCount)) * 4), 0)
-
-                if (roll + modifier >= this.currentBoss.difficulty) {
-                    resultText = "Victory"
-                    resultDesc = this.currentBoss.results.victory.replaceAll("{name}", team.name)
-                }
-
-                this.log(`Player Count: ${this.bot.chalk.blue(playerCount)} + Role Gap: ${this.bot.chalk.blue(roleGap)} => Modifier ${this.bot.chalk.blue(modifier)}`)
-                this.log(`Roll: ${this.bot.chalk.yellow(roll)}(+${this.bot.chalk.blue(modifier)}) => ${resultText}`)
-            }
-
+        if (playerCount === 0) {
             let resultMessage = new Discord.ContainerBuilder()
                 .setAccentColor(Discord.resolveColor(team.colour))
                 .addTextDisplayComponents([
                     (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
-                        .setContent(`# ${resultText}!`),
+                        .setContent(`# Defeat!`),
                     (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
-                        .setContent(resultDesc)
+                        .setContent(this.currentBoss.results.uncontested.replaceAll("{name}", team.name))
                 ])
-                .addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)
-
-                let userList = ""
-
-            for (let userId of this.participants.keys()) {
-                if (this.participants.get(userId)?.team === team.id) {
-                    let user = await channel.guild.members.fetch(userId)
-                    userList += `- ${user.displayName} (${this.participants.get(userId)!.role})\n`
-                }
-            }
-
-            resultMessage.addTextDisplayComponents([
-                (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
-                    .setContent(`## Combatants \n ${userList}`)
-            ])
             let sentMessage = await channel.send({
                 components: [resultMessage],
                 flags: [Discord.MessageFlags.IsComponentsV2]
             })
+            return
         }
+
+        let sortedRatios = ratios.values().toArray().sort()
+        roleGap = Math.abs(sortedRatios[0] - sortedRatios[sortedRatios.length - 1])
+
+        let resultText = "Defeat"
+        let resultDesc = this.currentBoss.results.defeat.replaceAll("{name}", team.name)
+
+        if (ratios.get("gather") === 0 && ratios.get("gather") === 0) {
+            resultDesc = this.currentBoss.results.allShield.replaceAll("{name}", team.name)
+            this.log(`All players went with Shield => Defeat`)
+        } else if (ratios.get("shield") === 0 && ratios.get("throw") === 0) {
+            resultDesc = this.currentBoss.results.allGather.replaceAll("{name}", team.name)
+            this.log(`All players went with Gather => Defeat`)
+        } else if (ratios.get("shield") === 0 && ratios.get("gather") === 0) {
+            resultDesc = this.currentBoss.results.allThrow.replaceAll("{name}", team.name)
+            this.log(`All players went with Throw => Defeat`)
+        } else {
+            let roll = Math.round(Math.random()*100)
+            let modifier = Math.max(30 - ((roleGap + (6 - playerCount)) * 4), 0)
+
+            if (roll + modifier >= this.currentBoss.difficulty) {
+                resultText = "Victory"
+                resultDesc = this.currentBoss.results.victory.replaceAll("{name}", team.name)
+                let score = 3 * playerCount
+
+                let scoreResponse = await fetch(`${process.env.API_HOST}/api/v1/modcorp/teams/score`, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        "token": process.env.API_TOKEN as string,
+                        "user_name": team.name,
+                        "user_id": team.discord.role,
+                        "id": team.id,
+                        "score": score,
+                        "reason": `Team ${team.name} completed the event ${this.name}`
+                    }),
+                    headers: {"Content-type": "application/json"}
+                })
+
+                if (!scoreResponse.ok) {
+                    this.log(`Failed to update score for Team ${team.name} by ${score}`)
+                }
+            }
+
+            this.log(`Player Count: ${this.bot.chalk.blue(playerCount)} + Role Gap: ${this.bot.chalk.blue(roleGap)} => Modifier ${this.bot.chalk.blue(modifier)}`)
+            this.log(`Roll: ${this.bot.chalk.yellow(roll)}(+${this.bot.chalk.blue(modifier)}) => ${resultText}`)
+
+
+        }
+
+        let resultMessage = new Discord.ContainerBuilder()
+            .setAccentColor(Discord.resolveColor(team.colour))
+            .addTextDisplayComponents([
+                (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
+                    .setContent(`# ${resultText}!`),
+                (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
+                    .setContent(resultDesc)
+            ])
+            .addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)
+
+        let userList = ""
+
+        for (let userId of this.participants.keys()) {
+            if (this.participants.get(userId)?.team === team.id) {
+                let user = await channel.guild.members.fetch(userId)
+                userList += `- ${user.displayName} (${this.participants.get(userId)!.role})\n`
+            }
+        }
+
+        resultMessage.addTextDisplayComponents([
+            (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
+                .setContent(`## Combatants \n ${userList}`)
+        ])
+        let sentMessage = await channel.send({
+            components: [resultMessage],
+            flags: [Discord.MessageFlags.IsComponentsV2]
+        })
     }
 }
