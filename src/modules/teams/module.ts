@@ -99,6 +99,16 @@ export default class TeamsModule extends DiscordBotModule {
     async assignRandomTeam(interaction: Discord.ButtonInteraction) {
         let embed = new Discord.EmbedBuilder()
         try {
+            for (const team of this.currentTeams.values()) {
+                if (interaction.member.roles.cache.has(team.discord.role)) {
+                    embed.setTitle("Failed to assign a team.")
+                    embed.setDescription("You already have a team.")
+                    embed.setColor(Discord.Colors.Red)
+                    await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
+                    return
+                }
+            }
+
             let teamRatios = await this.getTeamRatioStringArray()
             if (teamRatios.length === 0) {
                 embed.setTitle("No teams available.")
@@ -235,7 +245,7 @@ export default class TeamsModule extends DiscordBotModule {
                 eventName = eventNames[0]
                 event = this.events.get(eventName)
             } else {
-                eventName = eventNames[Math.floor(Math.random()*(eventNames.length - 1))]
+                eventName = eventNames[Math.floor(Math.random()*(eventNames.length))]
                 event = this.events.get(eventName)
             }
             if (!event) {

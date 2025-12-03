@@ -33,7 +33,7 @@ export default class TimerEventScheduler extends EventScheduler {
             await this.module.triggerEvent(["snowballbossfight"])
         } else { // Do random events during uptime
             this.module.log(`It is ${currentHours}:${currentMins} - Running Random Event!`)
-            await this.module.triggerEvent(["snowballbossfight"], true)
+            await this.module.triggerEvent(["anagrams", "trivia"])
         }
     }
 }

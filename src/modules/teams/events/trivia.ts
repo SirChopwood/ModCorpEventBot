@@ -32,12 +32,16 @@ export default class TriviaQuestion extends TeamsEventQuestion {
         // Prepare Google Docky
         let {document, sheet, headers} = await this.module.getSpreadsheet(0)
         let questionRows: GoogleSpreadsheetRow[] = await sheet.getRows()
-        questionRows = questionRows.filter((value) => {return value.get(headers[3]) !== ""})
+        questionRows = questionRows.filter((value) => {return value.get(headers[4]) !== ""})
         const question = questionRows[Math.floor(Math.random() * (questionRows.length-1))]
+
+        if (!question) {
+            this.log("Failed to get question. ", question)
+        }
 
         // Prepare Question and Answer
         let shuffledAnswers: Array<string> = [question.get(headers[4])]
-        for (let column of [5,6,7,8,9,10]) {
+        for (let column of [5,6,7]) {
             let answer = question.get(headers[column])
             if (answer) {
                 shuffledAnswers.push(answer)
@@ -49,8 +53,8 @@ export default class TriviaQuestion extends TeamsEventQuestion {
         this.currentQuestion = {
             author: question.get(headers[0]),
             reward: question.get(headers[1]),
-            image: question.get(headers[2]),
-            question: question.get(headers[3]),
+            image: question.get(headers[3]),
+            question: question.get(headers[2]),
             correctAnswer: question.get(headers[4]),
             correctAnswerValue: "",
             shuffledAnswers: shuffledAnswers
@@ -68,7 +72,7 @@ export default class TriviaQuestion extends TeamsEventQuestion {
                 (textDisplay: Discord.TextDisplayBuilder) => textDisplay
                     .setContent(`## ${this.currentQuestion!.question}\n-# By ${this.currentQuestion!.author}`)
             ])
-            if (this.currentQuestion.image) {
+            if (this.currentQuestion.image !== "") {
                 message.addMediaGalleryComponents((mediaGallery: Discord.MediaGalleryBuilder) => mediaGallery.addItems(
                     (mediaGalleryItem: Discord.MediaGalleryItemBuilder) => mediaGalleryItem
                         .setDescription(this.currentQuestion!.question)

@@ -154,6 +154,7 @@ export default class Anagrams extends TeamsEventQuestion {
     }
 
     async updateEvent(text: string) {
+        await super.updateEvent(text);
         for (const team of Object.values(this.teams)) {
             this.messageReferences[team.id].components[3].components[0].setLabel(text) // Editing String Select
 

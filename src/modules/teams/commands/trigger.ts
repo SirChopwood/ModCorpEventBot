@@ -39,7 +39,7 @@ export default {
         if (input === "random") {
             await eventModule.triggerEvent()
         } else {
-            await eventModule.triggerEvent(input)
+            await eventModule.triggerEvent([input])
         }
     },
 

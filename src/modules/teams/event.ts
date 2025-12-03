@@ -77,6 +77,7 @@ export default class TeamsEvent {
     }
 
     async updateEvent(text: string) {
+        this.log(text)
     }
 
     async finishEvent() {

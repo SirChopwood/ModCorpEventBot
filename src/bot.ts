@@ -17,6 +17,7 @@ export default class DiscordBot{
     client: Discord.Client;
     permissions: Permissions
     chalk: ChalkInstance
+    cooldowns = new Discord.Collection()
 
     constructor() {
         this.client = new Discord.Client({
@@ -129,6 +130,25 @@ export default class DiscordBot{
     }
 
     async onInteraction(interaction: Discord.Interaction) {
+        if (!interaction.isAutocomplete()) {
+            if (this.cooldowns.has(interaction.user.id)) {
+                let previous = this.cooldowns.get(interaction.user.id)
+                let current = Date.now() - (Number(process.env.BOT_COOLDOWN) || 5000)
+                if (previous > current) {
+                    this.botLog(this.chalk.grey(`${this.chalk.italic(interaction.user.displayName)} triggered their cooldown.`))
+                    if (interaction.isRepliable()) {
+                        let embed = new Discord.EmbedBuilder()
+                            .setColor(Discord.Colors.Red)
+                            .setTitle("Please wait before trying again!")
+                            .setDescription("-# Spamming will not make it happen quicker.")
+                        await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral});
+                    }
+                    return
+                }
+            }
+            this.cooldowns.set(interaction.user.id, Date.now())
+        }
+
         if (interaction.isCommand() || interaction.isAutocomplete()) { // Sends Application Commands to be executed directly
             await this.onApplicationCommand(interaction)
         } else if (interaction.customId) { // Forwards buttons, selects etc to relevant module
@@ -141,7 +161,7 @@ export default class DiscordBot{
         const interactionCustomId = interaction.customId.replace(`${interactionModuleName}-`, "")
         const interactionModule = this.modules.get(interactionModuleName)
         try {
-            interactionModule?.log(`${this.chalk.italic(interaction.user.displayName)} triggered interaction ${interactionCustomId}`)
+            interactionModule?.log(this.chalk.grey(`${this.chalk.italic(interaction.user.displayName)} triggered interaction ${interactionCustomId}`))
             await interactionModule.onInteraction(interaction, interactionCustomId)
         } catch (error) {
         this.botLog(`Error executing ${interaction.customId}`)
