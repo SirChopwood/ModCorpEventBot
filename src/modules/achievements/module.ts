@@ -96,7 +96,7 @@ export default class AchievementsModule extends DiscordBotModule {
                 "token": process.env.API_TOKEN,
                 "user_name": interaction.user.displayName,
                 "user_id": interaction.user.id,
-                "target": targetUser.id,
+                "target": [targetUser.id],
                 "achievement": Number(achievementId),
                 "note": reason,
                 "tier": Number(tier)
@@ -207,7 +207,7 @@ export default class AchievementsModule extends DiscordBotModule {
         }
 
         let PartText = "## Participation Awards"
-        if (participations.length > 1) {
+        if (participations.length > 0) {
             for (let part of participations) {
                 PartText += `\n- **${part.name}** - ${part.desc}`
             }
