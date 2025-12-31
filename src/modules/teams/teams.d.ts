@@ -4,6 +4,7 @@ export type Team = {
     "description": string,
     "colour": string,
     "logo_url": string,
+    "score": number,
     "discord": {
         "role": string,
         "channel": string,

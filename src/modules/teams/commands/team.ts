@@ -184,6 +184,11 @@ export default {
         let targetName: string = interaction.options.getString('name')
         let targetId: number = interaction.options.getInteger("id")
 
+        if (!bot.permissions.isAdmin(interaction.member)) {
+            await interaction.reply({content: "You do not have permission for that.", flags: Discord.MessageFlags.Ephemeral});
+            return
+        }
+
         await interaction.reply({content: "Searching...", flags: Discord.MessageFlags.Ephemeral})
 
         let fetchResponse
@@ -199,7 +204,7 @@ export default {
                 body: JSON.stringify({"id": targetId}),
                 headers: {"Content-type": "application/json"}
             })
-        } else if (bot.permissions.isAdmin(interaction.user)) {
+        } else {
             let message = new Discord.ContainerBuilder()
                 .setAccentColor(Discord.Colors.Purple)
                 .addTextDisplayComponents([
@@ -258,9 +263,6 @@ export default {
                 components: [message],
                 flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
             });
-            return
-        } else {
-            await interaction.editReply({content: "Please use a team Name or ID."});
             return
         }
 

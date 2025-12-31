@@ -66,6 +66,10 @@ export default class DiscordBotModule {
         if (fs.existsSync(commandsPath)) {
             const foundCommands = fs.readdirSync(commandsPath, { withFileTypes: true, recursive: true })
                 .filter(dirent => !dirent.isDirectory())
+                .filter((dirent) => {
+                    console.log(dirent.name)
+                    return !dirent.name.startsWith("_")
+                })
                 .map(dirent => dirent.name)
             for (const command of foundCommands) {
                 let {default: commandClass} = await import(path.join("file://", commandsPath, command))

@@ -67,7 +67,7 @@ export default class TriviaQuestion extends TeamsEventQuestion {
         await super.triggerEvent(team)
         if (this.currentQuestion !== null) {
             // Build Base Message
-            let message = this.getMessageHeader(team)
+            let message = await this.getMessageHeader(team)
             message.addTextDisplayComponents([
                 (textDisplay: Discord.TextDisplayBuilder) => textDisplay
                     .setContent(`## ${this.currentQuestion!.question}\n-# By ${this.currentQuestion!.author}`)
@@ -148,6 +148,7 @@ export default class TriviaQuestion extends TeamsEventQuestion {
     }
 
     async updateEvent(text: string) {
+        await super.updateEvent(text)
         for (const team of Object.values(this.teams)) {
             this.messageReferences[team.id].components[3].components[0].setPlaceholder(text) // Editing String Select
 
@@ -160,17 +161,23 @@ export default class TriviaQuestion extends TeamsEventQuestion {
     async finishEvent() {
         for (const team of Object.values(this.teams)) {
             const teamPoints = this.scores.teams[team.id].CorrectUsers.length * Number(this.currentQuestion!.reward)
-            // ADD POST REQUEST TO ADD POINTS HERE.
 
-            this.messageReferences[team.id].addTextDisplayComponents([
-                (textDisplay: Discord.TextDisplayBuilder) => textDisplay
-                    .setContent(`Out of all ${this.scores.globalAnswerCount} participants, ${this.scores.globalCorrectCount} got the question right.\n**+${teamPoints} points to Team ${team.name}.**`)
-            ])
             this.messageReferences[team.id].components[3].components[0].setPlaceholder("Time's up!") // Editing String Select
             this.messageReferences[team.id].components[3].components[0].setDisabled(true)
 
             await this.teamRefs[team.id].messages["Main"].edit({
                 components: [this.messageReferences[team.id]]
+            })
+
+            let resultMessage = await this.startResultMessage(team, `# ${this.name} Results`)
+            resultMessage.addTextDisplayComponents([
+                (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
+                    .setContent(`Between the teams, ${this.scores.globalCorrectCount} / ${this.scores.globalAnswerCount} got the question right.\nTeam ${team.name} answered ${this.scores.teams[team.id].CorrectUsers.length} / ${this.scores.teams[team.id].AnswerUsers.length} correctly.\n**+${teamPoints} points to Team ${team.name}.**`)
+            ])
+            resultMessage = await this.finishResultMessage(team, resultMessage)
+            await this.teamRefs[team.id].channel.send({
+                components: [resultMessage],
+                flags: [Discord.MessageFlags.IsComponentsV2]
             })
         }
         this.currentQuestion = null

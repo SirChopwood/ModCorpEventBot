@@ -37,12 +37,18 @@ export default class TeamsModule extends DiscordBotModule {
         await this.mountEvents()
         await super.initialise()
 
-        let schedulerPath = process.env.TEAMS_SCHEDULER || "timer.js"
-        let {default: scheduler} = await import(path.join("file://", path.dirname(this.path), "schedulers", schedulerPath))
-        this.scheduler = new scheduler(this.bot, this)
-        if (this.scheduler !== null) {
-            await this.scheduler.start()
+        let schedulerPath = process.env.TEAMS_SCHEDULER || ""
+
+        if (schedulerPath !== "") {
+            let {default: scheduler} = await import(path.join("file://", path.dirname(this.path), "schedulers", schedulerPath))
+            this.scheduler = new scheduler(this.bot, this)
+            if (this.scheduler !== null) {
+                await this.scheduler.start()
+            }
+        } else {
+            this.log(`No scheduler selected!`)
         }
+
 
         await this.updateCurrentTeams()
         setInterval(this.updateCurrentTeams.bind(this), 1000*60*10)
@@ -57,12 +63,18 @@ export default class TeamsModule extends DiscordBotModule {
 
     async onInteraction(interaction: Discord.Interaction, customId: string) {
         const interactionCustomIds = customId.split("-")
-        if (interactionCustomIds[0] === "events"){
-            const eventInteractionCustomId = customId.replace(`events-${interactionCustomIds[1]}-`, "")
-            const eventClass = this.events.get(interactionCustomIds[1])
-            await eventClass.onInteraction(interaction, eventInteractionCustomId)
-        } else if (interactionCustomIds[0] === "assignment"){
-            await this.assignRandomTeam(interaction)
+        switch (interactionCustomIds[0]) {
+            case "events":
+                const eventInteractionCustomId = customId.replace(`events-${interactionCustomIds[1]}-`, "")
+                const eventClass = this.events.get(interactionCustomIds[1])
+                await eventClass.onInteraction(interaction, eventInteractionCustomId)
+                return
+            case "assignment":
+                await this.assignRandomTeam(interaction)
+                return
+            case "ping":
+                await this.togglePingPreference(interaction)
+                return
         }
     }
 
@@ -272,5 +284,28 @@ export default class TeamsModule extends DiscordBotModule {
         await sheet.loadHeaderRow()
         const headers = sheet.headerValues
         return {document: this.spreadsheet, sheet: sheet, headers: headers}
+    }
+
+    async togglePingPreference(interaction: Discord.StringSelectMenuInteraction) {
+        let embed = new Discord.EmbedBuilder()
+        try {
+            if (interaction.values[0] === "opt-in") {
+                await interaction.member.roles.add(process.env.TEAMS_PING_ROLE)
+                embed.setDescription(`You have been assigned the role, you can opt out at any time!`)
+            } else if (interaction.values[0] === "opt-out") {
+                await interaction.member.roles.remove(process.env.TEAMS_PING_ROLE)
+                embed.setDescription(`You have had the role removed, you can opt back in at any time!`)
+            }
+            embed.setTitle("Notification Ping Role")
+            embed.setColor(Discord.Colors.Green)
+
+        } catch (e) {
+            this.log(e)
+            embed.setTitle("Failed to assign a team.")
+            embed.setDescription("Please try again later or contact an Event Manager.")
+            embed.setColor(Discord.Colors.Red)
+        }
+        await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
+        return
     }
 }

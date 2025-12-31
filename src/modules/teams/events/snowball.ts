@@ -14,6 +14,7 @@ export default class TriviaQuestion extends TeamsEvent {
     }> = new Discord.Collection();
     bosses: Array<BossType> = bosses
     currentBoss: BossType
+    roll = 0
 
     constructor(bot: DiscordBot, module: DiscordBotModuleType) {
         super(bot, module, {
@@ -43,7 +44,7 @@ export default class TriviaQuestion extends TeamsEvent {
 
     async triggerEvent(team: Team) {
         await super.triggerEvent(team)
-        let message = this.getMessageHeader(team)
+        let message = await this.getMessageHeader(team)
 
         message.addMediaGalleryComponents([
             (mediaGallery: Discord.MediaGalleryBuilder) => mediaGallery.addItems([
@@ -152,6 +153,7 @@ export default class TriviaQuestion extends TeamsEvent {
     }
 
     async updateEvent(text: string) {
+        await super.updateEvent(text)
         for (const team of Object.values(this.teams)) {
             try {
                 let {channel, message, components} = await this.getTeamMessageAndComponent(team)
@@ -173,11 +175,13 @@ export default class TriviaQuestion extends TeamsEvent {
     }
 
     async finishEvent() {
+        this.roll = Math.round(Math.random()*100)
         for (const team of Object.values(this.teams)) {
             try {
                 await this.finishTeam(team)
             } catch (e) {
                 this.log(`Failed to finish event for team ${team.name}`)
+                this.log(e)
             }
         }
     }
@@ -214,14 +218,7 @@ export default class TriviaQuestion extends TeamsEvent {
         }
 
         if (playerCount === 0) {
-            let resultMessage = new Discord.ContainerBuilder()
-                .setAccentColor(Discord.resolveColor(team.colour))
-                .addTextDisplayComponents([
-                    (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
-                        .setContent(`# Defeat!`),
-                    (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
-                        .setContent(this.currentBoss.results.uncontested.replaceAll("{name}", team.name))
-                ])
+            let resultMessage = await this.startResultMessage(team, `# Defeat!\n${this.currentBoss.results.uncontested.replaceAll("{name}", team.name)}`)
             let sentMessage = await channel.send({
                 components: [resultMessage],
                 flags: [Discord.MessageFlags.IsComponentsV2]
@@ -229,7 +226,7 @@ export default class TriviaQuestion extends TeamsEvent {
             return
         }
 
-        let sortedRatios = ratios.values().toArray().sort()
+        let sortedRatios = ratios.values().toArray().sort(function(a: number, b: number){return a - b})
         roleGap = Math.abs(sortedRatios[0] - sortedRatios[sortedRatios.length - 1])
 
         let resultText = "Defeat"
@@ -245,12 +242,11 @@ export default class TriviaQuestion extends TeamsEvent {
             resultDesc = this.currentBoss.results.allThrow.replaceAll("{name}", team.name)
             this.log(`All players went with Throw => Defeat`)
         } else {
-            let roll = Math.round(Math.random()*100)
             let playerMod = Math.min((Math.max(playerCount - 6, 0)) * 2, 15)
             let roleMod = Math.min(roleGap * -3, 12)
             let modifier = Math.max(Math.min((playerMod + roleMod) * 2, 30), 0)
 
-            if (roll + modifier >= this.currentBoss.difficulty) {
+            if (this.roll + modifier >= this.currentBoss.difficulty) {
                 resultText = "Victory"
                 resultDesc = this.currentBoss.results.victory.replaceAll("{name}", team.name)
                 let score = 3 * playerCount
@@ -274,20 +270,12 @@ export default class TriviaQuestion extends TeamsEvent {
             }
 
             this.log(`Team ${this.bot.chalk.green(team.name)} | Player Count: ${this.bot.chalk.blue(playerCount)} + Role Gap: ${this.bot.chalk.blue(roleGap)} => Modifier ${this.bot.chalk.blue(modifier)}`)
-            this.log(`Team ${this.bot.chalk.green(team.name)} | Roll: ${this.bot.chalk.yellow(roll)}(+${this.bot.chalk.blue(modifier)}) VS ${this.bot.chalk.redBright(this.currentBoss.difficulty)} => ${resultText}`)
+            this.log(`Team ${this.bot.chalk.green(team.name)} | Roll: ${this.bot.chalk.yellow(this.roll)}(+${this.bot.chalk.blue(modifier)}) VS ${this.bot.chalk.redBright(this.currentBoss.difficulty)} => ${resultText}`)
 
 
         }
 
-        let resultMessage = new Discord.ContainerBuilder()
-            .setAccentColor(Discord.resolveColor(team.colour))
-            .addTextDisplayComponents([
-                (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
-                    .setContent(`# ${resultText}!`),
-                (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
-                    .setContent(resultDesc)
-            ])
-            .addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)
+        let resultMessage = await this.startResultMessage(team, `# ${resultText}!\n${resultDesc}`)
 
         let userList = ""
 
@@ -302,7 +290,9 @@ export default class TriviaQuestion extends TeamsEvent {
             (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
                 .setContent(`## Combatants \n ${userList}`)
         ])
-        let sentMessage = await channel.send({
+
+        resultMessage = await this.finishResultMessage(team, resultMessage)
+        await channel.send({
             components: [resultMessage],
             flags: [Discord.MessageFlags.IsComponentsV2]
         })

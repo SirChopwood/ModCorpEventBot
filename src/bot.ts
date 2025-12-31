@@ -10,6 +10,8 @@ import DiscordBotModule from "./module";
 import * as util from "node:util";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const logDir = path.join(__dirname, "../", "logs")
+const logPath = path.join(logDir, `${new Date().toISOString().replaceAll(":","-")}.txt`)
 
 export default class DiscordBot{
     commands: Discord.Collection<string, {data: any, execute: void}>
@@ -18,12 +20,19 @@ export default class DiscordBot{
     permissions: Permissions
     chalk: ChalkInstance
     cooldowns = new Discord.Collection()
+    logfile: fs.WriteStream
 
-    constructor() {
+        constructor() {
+        if (!fs.existsSync(logDir)) {
+            fs.mkdirSync(logDir)
+        }
+        this.logfile = fs.createWriteStream(logPath, {flags: 'w'})
+
         this.client = new Discord.Client({
             intents: [
                 Discord.GatewayIntentBits.Guilds,
                 Discord.GatewayIntentBits.GuildMessages,
+                Discord.GatewayIntentBits.GuildMembers,
                 Discord.GatewayIntentBits.MessageContent,
                 Discord.GatewayIntentBits.DirectMessages
             ],
@@ -47,7 +56,8 @@ export default class DiscordBot{
         let sources = `[${source.join("/")}]`
         const sourcesLength = util.stripVTControlCharacters(sources).length
         const sourcesPadding = " ".repeat(Math.max(0, 30-sourcesLength))
-        console.log(date, sourcesPadding, sources, ...args);
+        this.logfile.write(util.format(date, sourcesPadding, sources, ...args).replace(/\x1B[[(?);]{0,2}(;?\d)*./g, "") + "\n")
+        console.log(date, sourcesPadding, sources, ...args)
     }
     
     botLog(...args: any[]) {
@@ -232,5 +242,11 @@ export default class DiscordBot{
         readyClient.user.setActivity(process.env.BOT_STATUS_MESSAGE, {
             type: activityTypes[process.env.BOT_STATUS_TYPE as string]
         })
+
+        for (let guild of this.client.guilds.cache.values()) {
+            this.botLog(`Forcing guild ${guild.name} to refresh`)
+            await guild.members.fetch({force: true})
+            this.botLog(`${this.chalk.magenta(guild.name)} - All Guild Members Fetched`)
+        }
     }
 }

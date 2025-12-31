@@ -245,7 +245,7 @@ export default [{
         intro: "Two pricing purple eyes gazes at you, with an hypnotizing charm",
         name: "Tale",
         title: "The Rizzler",
-        image: "https://cdn.discordapp.com/attachments/616614945680785438/1444428121368428566/Tale_Rizz.jpg",
+        image: "https://cdn.discordapp.com/attachments/1395561969095934033/1447068105757950052/Tale_Rizz.jpg",
     },
     results: {
         victory: "Snow explodes in every direction as Tale finally trips over his own enthusiasm, faceplanting into the snow. Team {name} seizes the moment, claiming victory.",
@@ -480,4 +480,20 @@ export default [{
         uncontested: "'...so THAT happened!'"
     },
     difficulty: 130
+}, {
+    titleCard: {
+        intro: "From the tops of the mountains, a Wiwiwi Echo's out, The Munchkin Standing tall above with her trusty duck, Ready to cause Mischief",
+        name: "RinMunchkin",
+        title: "The Munchkin, !Fish",
+        image: "https://cdn.discordapp.com/attachments/1445644909938999326/1445762702692585624/image.png",
+    },
+    results: {
+        victory: "The Munchkin Falls, exhausted, with one final blow, she wi's her last wi, defeated!",
+        defeat: "With a few final whips of her fishing rod, Team {name} Falls, defeated by the mighty Munchkin, Never stood a chance against the Judgement of the Divine Duck",
+        allGather: "The Combined Efforts, gathering all the snow, but forgetting to assign throwers....",
+        allThrow: "Standing Ready to attack!! the moment comes, and they realize, they have no ammunition....",
+        allShield: "A lot of will and duration, but without any power, they all crumble eventually....",
+        uncontested: "With no efferts made, The Munchkin Continues on her mischievous Actions...."
+    },
+    difficulty: 43
 }] as Array<BossType>

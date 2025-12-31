@@ -96,18 +96,56 @@ export default class TeamsEvent {
         }
     }
 
-    getMessageHeader(team: Team){
+    async getMessageHeader(team: Team){
+        let role = await this.teamRefs[team.id].guild.roles.fetch(process.env.TEAMS_PING_ROLE)
+
+
         return new Discord.ContainerBuilder()
             .setAccentColor(Discord.resolveColor(team.colour))
             .addSectionComponents((section: Discord.SectionBuilder) => section
                 .addTextDisplayComponents([
                     (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
-                        .setContent(`# ${this.name}\n${this.instructions}`)
+                        .setContent(`# ${this.name}\n${this.instructions}\n-# <@&${role?.id}>`)
                 ])
                 .setThumbnailAccessory((thumbnail: Discord.ThumbnailBuilder) => thumbnail
                     .setURL(team.logo_url)
                 )
             )
             .addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)
+    }
+
+    startResultMessage(team: Team, title: string) {
+        return new Discord.ContainerBuilder()
+            .setAccentColor(Discord.resolveColor(team.colour))
+            .addTextDisplayComponents([
+                (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
+                    .setContent(title)
+            ])
+            .addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)
+    }
+
+    async finishResultMessage(team: Team, message: Discord.ContainerBuilder) {
+        message.addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)
+            .addTextDisplayComponents([
+                (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
+                    .setContent("-# If you would like to opt-in or opt-out of Notifications, use the dropdown below:")
+            ])
+
+        let answersSelect = new Discord.StringSelectMenuBuilder()
+            .setCustomId(`${this.module.commandName}-ping`)
+            .setPlaceholder("Change Notification Preference")
+            .addOptions([
+                new Discord.StringSelectMenuOptionBuilder()
+                    .setLabel("Opt In to Notifications")
+                    .setValue("opt-in"),
+                new Discord.StringSelectMenuOptionBuilder()
+                    .setLabel("Opt Out of Notifications")
+                    .setValue("opt-out")
+            ])
+
+        message.addActionRowComponents((actionRow: Discord.ActionRowBuilder) =>
+            actionRow.setComponents(answersSelect)
+        )
+        return message
     }
 }
