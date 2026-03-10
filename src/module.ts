@@ -67,7 +67,6 @@ export default class DiscordBotModule {
             const foundCommands = fs.readdirSync(commandsPath, { withFileTypes: true, recursive: true })
                 .filter(dirent => !dirent.isDirectory())
                 .filter((dirent) => {
-                    console.log(dirent.name)
                     return !dirent.name.startsWith("_")
                 })
                 .map(dirent => dirent.name)
