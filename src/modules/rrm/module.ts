@@ -68,14 +68,12 @@ export default class RRMModule extends DiscordBotModule {
 
         this.chatBot.onConnect(async () => {
             this.log(this.bot.chalk.magenta("Connected to Twitch!"))
-            await this.refreshSession()
+            setTimeout(this.refreshSession.bind(this), 5000)
         })
         await this.chatBot.connect()
         let startingChannels = JSON.parse(process.env.RRM_TWITCH_CHANNELS!) as Array<string> || ['Ramiris_']
         this.log(`Connecting to ${this.bot.chalk.blue(startingChannels.length)} channels.`)
-        for (let channel of startingChannels) {
-            await this.joinChannelChat(channel)
-        }
+        await this.joinChannelChat(startingChannels)
 
         this.chatBot.onMessage(this.onMessage.bind(this))
 
@@ -88,63 +86,130 @@ export default class RRMModule extends DiscordBotModule {
         await super.deinitialise();
     }
 
-    async joinChannelChat(channel: string) {
-        if (!this.chatBot.currentChannels.includes(channel)) {
-            await this.chatBot.join(channel)
-            this.log(`Joining ${this.bot.chalk.magenta(channel)}'s chat.`)
+    async joinChannelChat(channels: Array<string>) {
+        let result = []
+        for await (let channel of channels) {
+            if (!this.chatBot.currentChannels.includes(`#${channel}`)) {
+                await this.chatBot.join(channel)
+                result.push(channel)
+            }
+        }
+        if (result.length > 0) {
+            this.log(`Joined the chats for ${this.bot.chalk.magenta(result.join(", "))}.`)
         }
     }
 
     async refreshSession() {
-        let response = await fetch(`https://prydwen5.sirchopwood.workers.dev/api/rrm_v2/session/active`, {
+        //this.log("Refreshing session...")
+        let response = await fetch(`${process.env.API_HOST}/api/rrm_v2/session/active`, {
             method: "POST",
+            body: JSON.stringify({
+                "token": process.env.API_TOKEN
+            }),
             headers: {"Content-type": "application/json"}
         })
         if (!response.ok) {return}
         const data = await response.json()
 
-        let newSessions: Record<string, any> = {}
-        let newChannels: Record<string, any> = {}
-        // ADD OR UPDATE NEW/EXISTING SESSIONS
+        let updatedSessions: Array<string> = []
+        let updatedChannels: Array<string> = []
+
         for await (const newData of data.sessions) {
             let oldData = this.sessions[String(newData.id)]
 
-            if (newData && oldData) {
-                if (newData !== oldData) {
-                    newSessions[String(newData.id)] = newData
-                    this.log(`Updated Session ID ${this.bot.chalk.blue(newData.id)}.`)
-                    for (let userId of newData.channels) {
-                        let user = await this.apiClient.users.getUserById(userId)
-                        if (!Object.keys(this.channels).includes(user?.name)) {
-                            newChannels[String(user?.name)] = newData.id
-                            await this.joinChannelChat(user?.name)
-                            this.log(`Added ${this.bot.chalk.magenta(user?.name)} to Session ID ${this.bot.chalk.green(newData.id)}.`)
-                        }
-                    }
-                }
-            } else if (!oldData) {
-                newSessions[String(newData.id)] = newData
+            if (oldData) {
+                this.sessions[String(newData.id)] = newData
+                //this.log(`Updated Session ID ${this.bot.chalk.blue(newData.id)}.`)
+                updatedSessions.push(String(newData.id))
+            } else {
+                this.sessions[String(newData.id)] = newData
                 this.log(`Added Session ID ${this.bot.chalk.green(newData.id)}.`)
+                updatedSessions.push(String(newData.id))
+            }
+            let users = await this.apiClient.users.getUsersByIds(newData.channels)
+            let userIds: Array<string> = []
+            for (let user of users) {
+                if (this.channels[user.name] !== newData.id) {
+                    this.channels[String(user.name)] = newData.id
+                    this.log(`Added ${this.bot.chalk.magenta(user.name)} to Session ID ${this.bot.chalk.green(newData.id)}.`)
+                }
+                updatedChannels.push(user.name)
+                userIds.push(String(user.name))
+            }
+            await this.joinChannelChat(userIds)
+        }
+        for (let userName of Object.keys(this.channels)) {
+            if (!updatedChannels.includes(userName)) {
+                this.log(`Removed ${this.bot.chalk.magenta(userName)} from Session ID ${this.bot.chalk.red(this.channels[userName])}.`)
+                delete this.channels[userName]
             }
         }
-        this.sessions = newSessions
-        this.channels = newChannels
-        // REMOVE OLD SESSIONS
-        for (const oldData of Object.values(this.sessions)) {
-            if (!Object.keys(newSessions).includes(String(oldData.id))) {
-                this.log(`Removed Session ID ${this.bot.chalk.red(oldData.id)}.`)
+        for (let sessiondId of Object.keys(this.sessions)) {
+            if (!updatedSessions.includes(String(sessiondId))) {
+                this.log(`Removed Session ID ${this.bot.chalk.red(String(sessiondId))}.`)
+                delete this.sessions[String(sessiondId)]
             }
         }
-        // REMOVE OLD CHANNELS
-        for (const oldChannel of Object.keys(this.channels)) {
-            if (!Object.keys(newChannels).includes(oldChannel)) {
-                this.log(`Removed ${this.bot.chalk.magenta(oldChannel)} from Session ID ${this.bot.chalk.red(this.channels[oldChannel])}.`)
-            }
-        }
+
+
+
+        // // ADD OR UPDATE NEW/EXISTING SESSIONS
+        // for await (const newData of data.sessions) {
+        //     let oldData = this.sessions[String(newData.id)]
+        //
+        //     if (newData && oldData) {
+        //         if (newData !== oldData) {
+        //             newSessions[String(newData.id)] = newData
+        //             this.log(`Updated Session ID ${this.bot.chalk.blue(newData.id)}.`)
+        //             for (let userId of newData.channels) {
+        //                 let user = await this.apiClient.users.getUserById(userId)
+        //                 console.log(user?.name, JSON.stringify(this.channels))
+        //                 if (this.channels[user?.name] !== newData.id) {
+        //                     newChannels[String(user?.name)] = newData.id
+        //                     await this.joinChannelChat(user?.name)
+        //                     this.log(`Added ${this.bot.chalk.magenta(user?.name)} to Session ID ${this.bot.chalk.green(newData.id)}.`)
+        //                 }
+        //             }
+        //         }
+        //     } else if (!oldData) {
+        //         newSessions[String(newData.id)] = newData
+        //         this.log(`Added Session ID ${this.bot.chalk.green(newData.id)}.`)
+        //     }
+        // }
+        // this.sessions = newSessions
+        // this.channels = newChannels
+        // // REMOVE OLD SESSIONS
+        // for (const oldData of Object.values(this.sessions)) {
+        //     if (!Object.keys(newSessions).includes(String(oldData.id))) {
+        //         this.log(`Removed Session ID ${this.bot.chalk.red(oldData.id)}.`)
+        //     }
+        // }
+        // // REMOVE OLD CHANNELS
+        // for (const oldChannel of Object.keys(this.channels)) {
+        //     if (!Object.keys(newChannels).includes(oldChannel)) {
+        //         this.log(`Removed ${this.bot.chalk.magenta(oldChannel)} from Session ID ${this.bot.chalk.red(this.channels[oldChannel])}.`)
+        //     }
+        // }
 
     }
 
+    async replyToUser(channel: string, user: string, message: ChatMessage, response: string){
+        await this.chatBot.say(channel, response, {replyTo: message})
+        const header = this.bot.chalk.bold(`${this.bot.chalk.blue(this.chatBot.irc.currentNick)} -> ${this.bot.chalk.magenta(user)}`)
+        this.subLog([this.bot.chalk.magenta(channel)], `${header}: ${response}`)
+    }
+
+    async sendMessageToChannel(channel: string, response: string){
+        await this.chatBot.say(channel, response)
+        const header = this.bot.chalk.bold(`${this.bot.chalk.blue(this.chatBot.irc.currentNick)}`)
+        this.subLog([this.bot.chalk.magenta(channel)], `${header}: ${response}`)
+    }
+
     async onMessage(channel: string, user: string, text: string, message: ChatMessage) {
+        if (text.toLowerCase().includes(this.chatBot.irc.currentNick)) {
+            const header = this.bot.chalk.bold(`${this.bot.chalk.magenta(user)} -> ${this.bot.chalk.blue(this.chatBot.irc.currentNick)}`)
+            this.subLog([this.bot.chalk.magenta(channel)], `${header}: ${text}`)
+        }
         if (text.startsWith(this.prefix)) {
             this.subLog([this.bot.chalk.magenta(channel)], `${this.bot.chalk.bold(user)}: ${text}`)
 
@@ -159,7 +224,7 @@ export default class RRMModule extends DiscordBotModule {
             const textSplit = text.replace(this.prefix, "").split(" ")
             if (textSplit[0].toLowerCase() === "dance") {
                 if (!this.sessions[this.channels[channel]]) {
-                    await this.chatBot.say(channel, `There is no session currently open, please wait until one is opened or unlocked.`, {replyTo: message})
+                    await this.replyToUser(channel, user, message, `There is no session currently open, please wait until one is opened or unlocked.`)
                     return
                 }
 
@@ -175,23 +240,24 @@ export default class RRMModule extends DiscordBotModule {
                         newMessage = newMessage + " " + sources[source]
                     }
                 }
-                await this.chatBot.say(channel, newMessage, {replyTo: message})
+                await this.replyToUser(channel, user, message, newMessage)
                 return
 
             } else if (textSplit[0].toLowerCase() === "sr") {
                 if (textSplit.length !== 2) {
-                    await this.chatBot.say(channel, `Please provide JUST the ID or Link to the song you want in the format "${this.prefix}sr (id/link)".`, {replyTo: message})
+                    await this.replyToUser(channel, user, message, `Please provide JUST the ID or Link to the song you want in the format "${this.prefix}sr (id/link)".`)
                     return
                 } else if (!this.sessions[this.channels[channel]]) {
-                    await this.chatBot.say(channel, `There is no session currently open, please wait until one is opened or unlocked.`, {replyTo: message})
+                    await this.replyToUser(channel, user, message, `There is no session currently open, please wait until one is opened or unlocked.`)
                     return
                 }
-                let response = await fetch(`${process.env.API_HOST}/api/v1/rrm/request/create`, {
+                let response = await fetch(`${process.env.API_HOST}/api/rrm_v2/request/add`, {
                     method: "POST",
                     body: JSON.stringify({
                         "user": user,
                         "codes": [textSplit[1]],
-                        "sessionId": this.sessions[this.channels[channel]].id
+                        "sessionId": this.sessions[this.channels[channel]].id,
+                        "token": process.env.API_TOKEN
                     }),
                     headers: {"Content-type": "application/json"}
                 })
@@ -200,28 +266,29 @@ export default class RRMModule extends DiscordBotModule {
                     try {
                         let responseJson = await response.json()
                         if (responseJson.length === 0) {
-                            await this.chatBot.say(channel, "Unable to find a match to that request.", {replyTo: message})
+                            await this.replyToUser(channel, user, message, "Unable to find a match to that request.")
                             return
                         }
                         let newMessage = `Added ${responseJson[0].text}`
                         if (responseJson[0].metadata.Source) {
                             newMessage = newMessage + ` from ${responseJson[0].metadata.Source}`
                         }
-                        await this.chatBot.say(channel, newMessage, {replyTo: message})
+                        await this.replyToUser(channel, user, message, newMessage)
                         return
                     } catch (e) {
                         this.log(`Error while creating request!`)
-                        await this.chatBot.say(channel, "Failed to queue song, an error has occurred, @Ramiris_ has been notified.", {replyTo: message})
+                        await this.replyToUser(channel, user, message, "Failed to queue song, an error has occurred, @Ramiris_ has been notified.")
                         return
                     }
                 } else {
                     this.log(`Creation request failed!`)
-                    await this.chatBot.say(channel, "Failed to queue song, unable to connect to server, @Ramiris_ has been notified.", {replyTo: message})
+                    this.log(await response.text())
+                    await this.replyToUser(channel, user, message, "Failed to queue song, unable to connect to server, @Ramiris_ has been notified.")
                     return
                 }
             } else if (textSplit[0].toLowerCase() === "more" && isModded) {
                 for (let targetChannel of this.sessions[this.channels[channel]].channels) {
-                    await this.chatBot.say(targetChannel, `DJ ${user} is requesting some more songs, you can help by adding some using the ${this.prefix}sr command! Type ${this.prefix}dance for more info.`)
+                    await this.sendMessageToChannel(targetChannel, `DJ ${user} is requesting some more songs, you can help by adding some using the ${this.prefix}sr command! Type ${this.prefix}dance for more info.`)
                 }
             } else {
                     this.log(`Unknown Command: ${text}`)
