@@ -150,47 +150,6 @@ export default class RRMModule extends DiscordBotModule {
                 delete this.sessions[String(sessiondId)]
             }
         }
-
-
-
-        // // ADD OR UPDATE NEW/EXISTING SESSIONS
-        // for await (const newData of data.sessions) {
-        //     let oldData = this.sessions[String(newData.id)]
-        //
-        //     if (newData && oldData) {
-        //         if (newData !== oldData) {
-        //             newSessions[String(newData.id)] = newData
-        //             this.log(`Updated Session ID ${this.bot.chalk.blue(newData.id)}.`)
-        //             for (let userId of newData.channels) {
-        //                 let user = await this.apiClient.users.getUserById(userId)
-        //                 console.log(user?.name, JSON.stringify(this.channels))
-        //                 if (this.channels[user?.name] !== newData.id) {
-        //                     newChannels[String(user?.name)] = newData.id
-        //                     await this.joinChannelChat(user?.name)
-        //                     this.log(`Added ${this.bot.chalk.magenta(user?.name)} to Session ID ${this.bot.chalk.green(newData.id)}.`)
-        //                 }
-        //             }
-        //         }
-        //     } else if (!oldData) {
-        //         newSessions[String(newData.id)] = newData
-        //         this.log(`Added Session ID ${this.bot.chalk.green(newData.id)}.`)
-        //     }
-        // }
-        // this.sessions = newSessions
-        // this.channels = newChannels
-        // // REMOVE OLD SESSIONS
-        // for (const oldData of Object.values(this.sessions)) {
-        //     if (!Object.keys(newSessions).includes(String(oldData.id))) {
-        //         this.log(`Removed Session ID ${this.bot.chalk.red(oldData.id)}.`)
-        //     }
-        // }
-        // // REMOVE OLD CHANNELS
-        // for (const oldChannel of Object.keys(this.channels)) {
-        //     if (!Object.keys(newChannels).includes(oldChannel)) {
-        //         this.log(`Removed ${this.bot.chalk.magenta(oldChannel)} from Session ID ${this.bot.chalk.red(this.channels[oldChannel])}.`)
-        //     }
-        // }
-
     }
 
     async replyToUser(channel: string, user: string, message: ChatMessage, response: string){
@@ -222,7 +181,10 @@ export default class RRMModule extends DiscordBotModule {
             }
 
             const textSplit = text.replace(this.prefix, "").split(" ")
-            if (textSplit[0].toLowerCase() === "dance") {
+            if (textSplit[0].toLowerCase() === "ping") {
+                await this.replyToUser(channel, user, message, `Pong!`)
+                return
+            } else if (textSplit[0].toLowerCase() === "dance") {
                 if (!this.sessions[this.channels[channel]]) {
                     await this.replyToUser(channel, user, message, `There is no session currently open, please wait until one is opened or unlocked.`)
                     return
@@ -244,11 +206,12 @@ export default class RRMModule extends DiscordBotModule {
                 return
 
             } else if (textSplit[0].toLowerCase() === "sr") {
-                if (textSplit.length !== 2) {
-                    await this.replyToUser(channel, user, message, `Please provide JUST the ID or Link to the song you want in the format "${this.prefix}sr (id/link)".`)
+                if (!this.sessions[this.channels[channel]]) {
+                    await this.replyToUser(channel, user, message, `There is no session currently open, please wait until one is opened by a DJ.`)
                     return
-                } else if (!this.sessions[this.channels[channel]]) {
-                    await this.replyToUser(channel, user, message, `There is no session currently open, please wait until one is opened or unlocked.`)
+                }
+                if (this.sessions[this.channels[channel]].requestStatus === "Locked") {
+                    await this.replyToUser(channel, user, message, `The sessions is currently locked, please wait until it is unlocked by a DJ.`)
                     return
                 }
                 let response = await fetch(`${process.env.API_HOST}/api/rrm_v2/request/add`, {
@@ -262,11 +225,12 @@ export default class RRMModule extends DiscordBotModule {
                     headers: {"Content-type": "application/json"}
                 })
 
+                let responseText = await response.text()
                 if (response.status === 200) {
                     try {
-                        let responseJson = await response.json()
-                        if (responseJson.length === 0) {
-                            await this.replyToUser(channel, user, message, "Unable to find a match to that request.")
+                        let responseJson = JSON.parse(responseText)
+                        if (responseText === "[]" || responseJson.length === 0) {
+                            await this.replyToUser(channel, user, message, `Unable to find a match to that request. Please provide JUST the ID or Link to the song you want in the format ${this.prefix}sr (id/link).`)
                             return
                         }
                         let newMessage = `Added ${responseJson[0].text}`
