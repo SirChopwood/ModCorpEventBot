@@ -196,16 +196,16 @@ export default class DiscordBot{
         switch (commandData.type) {
             case Discord.ApplicationCommandType.ChatInput: // SLASH COMMANDS
                 type = this.chalk.yellowBright("Slash Command")
-                name = commandData.name
+                name = this.chalk.yellowBright(commandData.name)
                 desc = this.chalk.grey("- " + commandData.description)
                 break
             case Discord.ApplicationCommandType.User: // USER CONTEXT MENU
                 type = this.chalk.magenta("Context (User)")
-                name = commandData.name
+                name = this.chalk.magenta(commandData.name)
                 break
             case Discord.ApplicationCommandType.Message: // MESSAGE CONTEXT MENU
                 type = this.chalk.blue("Context (Message)")
-                name = commandData.name
+                name = this.chalk.blue(commandData.name)
                 break
         }
 

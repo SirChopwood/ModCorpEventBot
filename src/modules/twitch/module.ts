@@ -133,7 +133,7 @@ export default class TwitchModule extends DiscordBotModule {
             const commandText = textSplit.shift()
             let command = this.commands.get(commandText?.toLowerCase())
             if (command) {
-                this.subLog([this.bot.chalk.magenta(channel)], `${this.bot.chalk.bold(user)} used ${this.bot.chalk.magentaBright(commandText)} ${textSplit.join(", ")}`)
+                this.subLog([this.bot.chalk.magenta(channel)], `${this.bot.chalk.italic(user)} executed ${this.bot.chalk.magentaBright(commandText)} ${textSplit.join(", ")}`)
                 await command.execute(this, channel, user, message, isModded, textSplit)
             } else {
                 this.log(`Unknown Command: ${text}`)
