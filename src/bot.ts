@@ -69,10 +69,11 @@ export default class DiscordBot{
             .filter(dirent => dirent.isDirectory())
             .map(dirent => dirent.name)
         this.botLog(`${this.chalk.blue(allModules.length)} Modules found in files.`)
+        this.botLog(this.chalk.grey(`Found Modules: ${allModules.join(", ")}`))
 
         
         this.botLog(this.chalk.bold.underline("Loading Desired Modules..."))
-        for (const desiredModule of desiredModules) {
+        for await (const desiredModule of desiredModules) {
             if (allModules.includes(desiredModule.toLowerCase())) {
                 const modulePath = path.join(
                     __dirname,
@@ -89,9 +90,13 @@ export default class DiscordBot{
         
         
         this.botLog(this.chalk.bold.underline("Initialising Modules..."))
-        for (let key of this.modules.keys()) {
+        for await (let key of this.modules.keys()) {
             await this.modules.get(key).preInit()
+        }
+        for await (let key of this.modules.keys()) {
             await this.modules.get(key).initialise()
+        }
+        for await (let key of this.modules.keys()) {
             await this.modules.get(key).postInit()
         }
         this.botLog(this.chalk.bold.underline.green("Done!\n"))
@@ -116,7 +121,7 @@ export default class DiscordBot{
         
         
         this.botLog(this.chalk.bold.underline("Applying to Guilds..."))
-        for (let guildId of this.client.guilds.cache.keys()) {
+        for await (let guildId of this.client.guilds.cache.keys()) {
             await this.client.application.commands.set(newCommands, guildId);
             this.botLog(`${this.chalk.magenta(this.client.guilds.cache.get(guildId)?.name)} ${this.chalk.grey("- " + guildId)}`)
         }

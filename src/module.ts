@@ -41,8 +41,9 @@ export default class DiscordBotModule {
     }
 
     async postInit () {
-        this.log(`Initialised!\n`)
+        this.log(`Initialised!`)
     }
+
     async deinitialise () {
         this.log(`Deinitialised!`)
     }
@@ -100,7 +101,7 @@ export default class DiscordBotModule {
                 }
             }
         } else {
-            this.log(`No commands found.`)
+            this.log(this.bot.chalk.grey.italic(`No Slash Commands found.`))
         }
     }
 }
