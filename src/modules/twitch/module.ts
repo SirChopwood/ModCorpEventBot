@@ -153,7 +153,7 @@ export default class TwitchModule extends DiscordBotModule {
             for (const command of foundCommands) {
                 let {default: commandClass} = await import(path.join("file://", commandsPath, command))
                 this.commands.set(commandClass.data.name.toLowerCase(), commandClass)
-                module.log(`${this.bot.chalk.magentaBright("Twitch Command")}: ${commandClass.data.name} ${this.bot.chalk.grey(` - ${commandClass.data.desc}`)}`)
+                module.log(`${this.bot.chalk.magentaBright("Twitch Command")}: ${commandClass.data.name} ${this.bot.chalk.grey(` - ${commandClass.data.description}`)}`)
             }
         } else {
             module.log(this.bot.chalk.grey.italic(`No Twitch Commands found.`))
