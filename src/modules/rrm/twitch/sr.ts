@@ -41,19 +41,24 @@ export default {
         if (response.status === 200) {
             try {
                 let responseJson = JSON.parse(responseText)
-                if (responseText === "[]" || responseJson.length === 0) {
-                    await twitchModule.replyToUser(channel, user, message, `Unable to find a match to that request. Please provide JUST the ID or Link to the song you want in the format ${twitchModule.prefix}sr (id/link).`)
+                if (!responseJson) {
+                    rrm.log(`Error while creating request!`)
+                    await twitchModule.replyToUser(channel, user, message, "Failed to queue song, an error has occurred, @Ramiris_ has been notified.")
+                    return
+                } else if (responseJson instanceof Array) {
+                    if (responseJson.length === 0) {
+                        await twitchModule.replyToUser(channel, user, message, `Unable to find a match to that request. Please provide JUST the ID or Link to the song you want in the format ${twitchModule.prefix}sr (id/link).`)
+                        return
+                    }
+                    let newMessage = `Added ${responseJson[0].text}`
+                    if (responseJson[0].metadata.Source) {
+                        newMessage = newMessage + ` from ${responseJson[0].metadata.Source}`
+                    }
+                    await twitchModule.replyToUser(channel, user, message, newMessage)
                     return
                 }
-                let newMessage = `Added ${responseJson[0].text}`
-                if (responseJson[0].metadata.Source) {
-                    newMessage = newMessage + ` from ${responseJson[0].metadata.Source}`
-                }
-                await twitchModule.replyToUser(channel, user, message, newMessage)
-                return
             } catch (e) {
-                rrm.log(`Error while creating request!`)
-                await twitchModule.replyToUser(channel, user, message, "Failed to queue song, an error has occurred, @Ramiris_ has been notified.")
+                await twitchModule.replyToUser(channel, user, message, responseText)
                 return
             }
         } else {
