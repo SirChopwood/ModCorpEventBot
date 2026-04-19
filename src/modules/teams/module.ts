@@ -11,9 +11,10 @@ import {GoogleSpreadsheet, GoogleSpreadsheetWorksheet} from 'google-spreadsheet'
 // @ts-ignore
 import { JWT } from 'google-auth-library';
 import EventScheduler from "./scheduler.js";
+import TeamClass from "./team.js";
 
 export default class TeamsModule extends DiscordBotModule {
-    currentTeams: Discord.Collection<string, Team> = new Discord.Collection()
+    currentTeams: Discord.Collection<string, TeamClass> = new Discord.Collection()
     events: Discord.Collection<string, TeamsEventType> = new Discord.Collection()
     spreadsheet: GoogleSpreadsheet
     scheduler: EventScheduler | null = null;
@@ -83,10 +84,8 @@ export default class TeamsModule extends DiscordBotModule {
         let maxValue = 0
         for (const team of this.currentTeams.values()) {
             if (team.discord.server && team.discord.channel && team.discord.role) {
-                const teamGuild = await this.client.guilds.fetch(team.discord.server)
-                const teamRole = await teamGuild.roles.fetch(team.discord.role)
-                maxValue = Math.max(teamRole.members.size, maxValue)
-                memberCount[team.id] = teamRole.members.size
+                maxValue = Math.max(team.role.members.size, maxValue)
+                memberCount[team.id] = team.role.members.size
             } else {
                 this.log(`Skipping team [${team.id}] ${team.name} as it has not been linked yet.`)
             }
@@ -112,7 +111,7 @@ export default class TeamsModule extends DiscordBotModule {
         let embed = new Discord.EmbedBuilder()
         try {
             for (const team of this.currentTeams.values()) {
-                if (interaction.member.roles.cache.has(team.discord.role)) {
+                if (interaction.member.roles.cache.has(team.role)) {
                     embed.setTitle("Failed to assign a team.")
                     embed.setDescription("You already have a team.")
                     embed.setColor(Discord.Colors.Red)
@@ -131,9 +130,9 @@ export default class TeamsModule extends DiscordBotModule {
             }
 
             const selectedTeamId = teamRatios[Math.floor(Math.random() * teamRatios.length)]
-            let selectedTeam: Team = this.currentTeams.get(Number(selectedTeamId))
+            let selectedTeam: TeamClass = this.currentTeams.get(Number(selectedTeamId))
 
-            await interaction.member.roles.add(selectedTeam.discord.role)
+            await interaction.member.roles.add(selectedTeam.role)
 
             embed.setTitle("Team Assigned")
             embed.setDescription(`You have joined Team ${selectedTeam.name}, congrats!`)
@@ -159,11 +158,13 @@ export default class TeamsModule extends DiscordBotModule {
                 headers: {"Content-type": "application/json"}
             })
             let teamData = await teamRequest.json()
-            this.currentTeams.set(teamData.id, teamData)
+            let teamClass = new TeamClass(teamData)
+            await teamClass.fetchDiscordData(this.bot, teamData)
+            this.currentTeams.set(teamData.id, teamClass)
         }
     }
 
-    async buildTeamEmbed(team: Team) {
+    async buildTeamEmbed(team: TeamClass) {
         let message = new Discord.ContainerBuilder()
             .setAccentColor(Discord.resolveColor(team.colour))
             .addSectionComponents((section: Discord.SectionBuilder) => section
@@ -178,42 +179,39 @@ export default class TeamsModule extends DiscordBotModule {
                 )
             )
             .addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)
-        const teamGuild = await this.client.guilds.fetch(team.discord.server)
-        if (teamGuild) {
+        if (team.server) {
             message.addTextDisplayComponents([(textDisplay: Discord.TextDisplayBuilder) => textDisplay
                 .setContent(`
-                Guild: **${teamGuild.name}**\n-# ${team.discord.server}
+                Guild: **${team.server.name}**\n-# ${team.server.id}
                 `)])
         } else {
             message.addTextDisplayComponents([(textDisplay: Discord.TextDisplayBuilder) => textDisplay
                 .setContent(`
-                Guild: **Guild Not Found!**\n-# ${team.discord.server}
+                Guild: **Guild Not Found!**
                 `)])
         }
-        const teamChannel = await teamGuild.channels.fetch(team.discord.channel)
-        if (teamChannel) {
+        if (team.channel) {
             message.addTextDisplayComponents([(textDisplay: Discord.TextDisplayBuilder) => textDisplay
                 .setContent(`
-                Channel: **#${teamChannel.name}**\n-# ${team.discord.channel}
+                Channel: **#${team.channel.name}**\n-# ${team.channel.id}
                 `)])
         } else {
             message.addTextDisplayComponents([(textDisplay: Discord.TextDisplayBuilder) => textDisplay
                 .setContent(`
-                Channel: **Channel Not Found!**\n-# ${team.discord.channel}
+                Channel: **Channel Not Found!**
                 `)])
         }
-        const teamRole = await teamGuild.roles.fetch(team.discord.role)
-        if (teamRole) {
+        if (team.role) {
             message.addTextDisplayComponents([
                 (textDisplay: Discord.TextDisplayBuilder) => textDisplay
                     .setContent(`
-                    Role: **@${teamRole.name}**\n-# ${team.discord.role}\nMember Count: ${teamRole.members.size}
+                    Role: **@${team.role.name}**\n-# ${team.role.id}\nMember Count: ${team.role.members.size}
                     `)
             ])
         } else {
             message.addTextDisplayComponents([(textDisplay: Discord.TextDisplayBuilder) => textDisplay
                 .setContent(`
-                Role: **Role Not Found!**\n-# ${team.discord.role}
+                Role: **Role Not Found!**
                 `)])
         }
         return message

@@ -2,6 +2,7 @@ import EventScheduler from "../scheduler.js";
 // @ts-ignore
 import * as Discord from "discord.js";
 import {Team} from "../teams";
+import TeamClass from "../team";
 
 export default class TimerEventScheduler extends EventScheduler {
     eventTimer: NodeJS.Timeout | null = null
@@ -52,16 +53,14 @@ export default class TimerEventScheduler extends EventScheduler {
     }
 
     async sendTeamUpdate(text: string) {
-        let scores: Array<Team> = this.module.currentTeams.values()
+        let scores: Array<TeamClass> = this.module.currentTeams.values()
             .toArray()
-            .sort((a: Team, b: Team) => {return a.score - b.score})
+            .sort((a: TeamClass, b: TeamClass) => {return a.score - b.score})
             .reverse()
         const medals = [":first_place:", ":second_place:", ":third_place:"]
 
         for (const position in scores) {
             let team = scores[position]
-            let guild = await this.bot.client.guilds.fetch(team.discord.server)
-            let channel = await guild.channels.fetch(team.discord.channel)
 
             let posText = `${String(Number(position)+Number(1))} ${Number(position) < 3 ? medals[position] : ":medal:"}`
 
@@ -83,7 +82,7 @@ export default class TimerEventScheduler extends EventScheduler {
                         .setContent(text)
                 ])
 
-            let sentMessage = await channel.send({
+            let sentMessage = await team.channel.send({
                 components: [message],
                 flags: [Discord.MessageFlags.IsComponentsV2]
             })

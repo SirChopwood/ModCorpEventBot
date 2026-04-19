@@ -4,6 +4,7 @@ import * as Discord from "discord.js";
 import {Team} from "./teams";
 import {DiscordBotModuleType} from "../../module";
 import TeamsEvent from "./event.js";
+import TeamClass from "./team";
 
 export default class TeamsEventQuestion extends TeamsEvent {
     scores: {
@@ -88,7 +89,7 @@ export default class TeamsEventQuestion extends TeamsEvent {
         }
     }
 
-    addTeam(team: Team, message: Discord.Message) {
+    addTeam(team: TeamClass, message: Discord.Message) {
         this.scores.teams[team.id] = {
             AnswerUsers: [],
             CorrectUsers: []

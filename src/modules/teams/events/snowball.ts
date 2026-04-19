@@ -5,6 +5,7 @@ import TeamsEvent from "../event.js";
 import {Team} from "../teams.js";
 import {DiscordBotModuleType} from "../../../module";
 import bosses, {BossType} from "../bosses.js";
+import TeamClass from "../team";
 
 export default class TriviaQuestion extends TeamsEvent {
     participants: Discord.Collection<Discord.Snowflake, {
@@ -42,7 +43,7 @@ export default class TriviaQuestion extends TeamsEvent {
         }
     }
 
-    async triggerEvent(team: Team) {
+    async triggerEvent(team: TeamClass) {
         await super.triggerEvent(team)
         let message = await this.getMessageHeader(team)
 
@@ -133,7 +134,7 @@ export default class TriviaQuestion extends TeamsEvent {
         } else {
             let embed = new Discord.EmbedBuilder()
             for (const team of Object.values(this.teams)) {
-                if (interaction.member.roles.cache.has(team.discord.role)) {
+                if (interaction.member.roles.cache.has(team.role.id)) {
                     embed.setColor(Discord.resolveColor(team.colour))
                     embed.setDescription(actionText)
                     let response = await interaction.reply({embeds: [embed], withResponse: true})
@@ -186,7 +187,7 @@ export default class TriviaQuestion extends TeamsEvent {
         }
     }
 
-    async finishTeam(team: Team) {
+    async finishTeam(team: TeamClass) {
         let {channel, message, components} = await this.getTeamMessageAndComponent(team)
         let newComps: Discord.ContainerBuilder = components[0]
         if (newComps.components[7]) {
@@ -256,7 +257,7 @@ export default class TriviaQuestion extends TeamsEvent {
                     body: JSON.stringify({
                         "token": process.env.API_TOKEN as string,
                         "user_name": team.name,
-                        "user_id": team.discord.role,
+                        "user_id": team.role.id,
                         "id": team.id,
                         "score": score,
                         "reason": `Team ${team.name} completed the event ${this.name}`

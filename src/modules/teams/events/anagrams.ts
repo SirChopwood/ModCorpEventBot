@@ -6,6 +6,7 @@ import {Team} from "../teams.js";
 // @ts-ignore
 import {GoogleSpreadsheetRow} from "google-spreadsheet";
 import {DiscordBotModuleType} from "../../../module";
+import TeamClass from "../team";
 
 export default class Anagrams extends TeamsEventQuestion {
     currentQuestion: {
@@ -60,7 +61,7 @@ export default class Anagrams extends TeamsEventQuestion {
         this.resetScores()
     }
 
-    async triggerEvent(team: Team) {
+    async triggerEvent(team: TeamClass) {
         await super.triggerEvent(team)
         if (this.currentQuestion !== null) {
             // Build Base Message
@@ -94,7 +95,7 @@ export default class Anagrams extends TeamsEventQuestion {
     async onInteraction(interaction: Discord.Interaction, customId: string) {
         let embed = new Discord.EmbedBuilder()
         for (const team of Object.values(this.teams)) {
-            if (interaction.member.roles.cache.has(team.discord.role)) {
+            if (interaction.member.roles.cache.has(team.role.id)) {
                 if (customId === "open" && interaction.isButton()) {
                     if (this.scores.teams[team.id].AnswerUsers.includes(interaction.user.id)) {
 

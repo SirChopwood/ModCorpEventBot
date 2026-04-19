@@ -3,6 +3,7 @@ import DiscordBot from "../../bot";
 import * as Discord from "discord.js";
 import {Team} from "./teams";
 import {DiscordBotModuleType} from "../../module";
+import TeamClass from "./team";
 
 export interface TeamsEventType extends TeamsEvent {
     [index: string]: any
@@ -22,7 +23,7 @@ export default class TeamsEvent {
         messages: Record<string, Discord.Snowflake>
         components: Record<Discord.Snowflake, Array<Discord.Component>>
     }> = {}
-    teams: Record<string, Team> = {}
+    teams: Record<string, TeamClass> = {}
 
 
     constructor(bot: DiscordBot, module: DiscordBotModuleType, {
@@ -50,24 +51,14 @@ export default class TeamsEvent {
         setTimeout(this.finishEvent.bind(this), eventDuration)
     }
 
-    async triggerEvent(team: Team) {
-        if (!(team.discord.server && team.discord.channel && team.discord.role)) {return}
+    async triggerEvent(team: TeamClass) {
+        if (!(team.server && team.channel && team.role)) {return}
         this.teams[team.id] = team
 
-
-        const teamGuild = await this.module.client.guilds.fetch(team.discord.server)
-        if (!teamGuild) {return}
-
-        const teamChannel = await teamGuild.channels.fetch(team.discord.channel)
-        if (!teamChannel) {return}
-
-        const teamRole = teamGuild.roles.fetch(team.discord.role)
-        if (!teamRole) {return}
-
         this.teamRefs[team.id] = {
-            guild: teamGuild,
-            channel: teamChannel,
-            role: teamRole,
+            guild: team.server,
+            channel: team.channel,
+            role: team.role,
             messages: {},
             components: {}
         }
@@ -84,7 +75,7 @@ export default class TeamsEvent {
         this.log("Event Concluded")
     }
 
-    async getTeamMessageAndComponent(team: Team) {
+    async getTeamMessageAndComponent(team: TeamClass) {
         let messageId = this.teamRefs[team.id].messages["Main"]
         let channel = this.teamRefs[team.id].channel
         let oldMessage = await channel.messages.fetch(messageId)
@@ -96,7 +87,7 @@ export default class TeamsEvent {
         }
     }
 
-    async getMessageHeader(team: Team){
+    async getMessageHeader(team: TeamClass){
         let role = await this.teamRefs[team.id].guild.roles.fetch(process.env.TEAMS_PING_ROLE)
 
 
@@ -114,7 +105,7 @@ export default class TeamsEvent {
             .addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)
     }
 
-    startResultMessage(team: Team, title: string) {
+    startResultMessage(team: TeamClass, title: string) {
         return new Discord.ContainerBuilder()
             .setAccentColor(Discord.resolveColor(team.colour))
             .addTextDisplayComponents([
@@ -124,7 +115,7 @@ export default class TeamsEvent {
             .addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)
     }
 
-    async finishResultMessage(team: Team, message: Discord.ContainerBuilder) {
+    async finishResultMessage(team: TeamClass, message: Discord.ContainerBuilder) {
         message.addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)
             .addTextDisplayComponents([
                 (textDisplay: Discord.TextDisplayBuilder)=> textDisplay

@@ -6,6 +6,7 @@ import {Team} from "../teams.js";
 // @ts-ignore
 import {GoogleSpreadsheetRow} from "google-spreadsheet";
 import {DiscordBotModuleType} from "../../../module";
+import TeamClass from "../team";
 
 export default class TriviaQuestion extends TeamsEventQuestion {
     currentQuestion: {
@@ -63,7 +64,7 @@ export default class TriviaQuestion extends TeamsEventQuestion {
         this.resetScores()
     }
 
-    async triggerEvent(team: Team) {
+    async triggerEvent(team: TeamClass) {
         await super.triggerEvent(team)
         if (this.currentQuestion !== null) {
             // Build Base Message
@@ -117,7 +118,7 @@ export default class TriviaQuestion extends TeamsEventQuestion {
             && Object.keys(this.messageReferences).length > 0
         ) {
             for (const team of Object.values(this.teams)) {
-                if (interaction.member.roles.cache.has(team.discord.role)) {
+                if (interaction.member.roles.cache.has(team.role.id)) {
                     const result = interaction.values[0] === this.currentQuestion.correctAnswerValue
                     await this.submitResult(interaction, team.id, result ? Number(this.currentQuestion.reward) : 0)
                     break
