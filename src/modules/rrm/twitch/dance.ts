@@ -1,7 +1,7 @@
 // @ts-ignore
 import {ChatMessage} from "@twurple/chat";
 import TwitchModule from "../../twitch/module";
-import RRMModule from "../module";
+import RRMModule from "../module.js";
 
 export default {
     data: {
@@ -16,7 +16,7 @@ export default {
         isModded: boolean,
         text: Array<string>
     ) {
-        let rrm = twitchModule.bot.modules.get("rrm") as RRMModule
+        let rrm = await twitchModule.bot.requireModule("rrm", RRMModule)
 
         if (!rrm.sessions[rrm.channels[channel]]) {
             await twitchModule.replyToUser(channel, user, message, `There is no session currently open, please wait until one is opened or unlocked.`)

@@ -3,7 +3,7 @@ import DiscordBot from "../../bot";
 // @ts-ignore
 import * as Discord from "discord.js";
 
-export default class CoreModule extends DiscordBotModule {
+export default class ArchiverModule extends DiscordBotModule {
     targetChannels: Discord.Collection<Discord.Snowflake, {
         guild: Discord.Snowflake,
         channel: Discord.Snowflake

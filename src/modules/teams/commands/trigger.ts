@@ -1,6 +1,7 @@
 // @ts-ignore
 import * as Discord from "discord.js";
 import DiscordBot from "../../../bot.js";
+import TeamsModule from "../module.js";
 
 export default {
     data: new Discord.SlashCommandBuilder()
@@ -21,7 +22,7 @@ export default {
         }
 
         let input = interaction.options.getString('event')
-        let eventModule = bot.modules.get("teams")
+        let eventModule = await bot.requireModule("teams", TeamsModule)
         let eventList = eventModule.events.keys().toArray()
 
         if (!eventList.includes(input) && input !== "random") {
@@ -45,7 +46,8 @@ export default {
 
     async autocomplete(bot: DiscordBot, interaction: Discord.AutocompleteInteraction) {
         let input = interaction.options.getFocused()
-        let eventList = bot.modules.get("teams").events.keys()
+        let eventModule = await bot.requireModule("teams", TeamsModule)
+        let eventList = eventModule.events.keys()
         let options: Array<{ name: string, value: string}> = [
             { name: "random", value: "random"}
         ]

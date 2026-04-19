@@ -1,6 +1,7 @@
 // @ts-ignore
 import * as Discord from "discord.js";
 import DiscordBot from "../../../bot.js";
+import AchievementsModule from "../module.js";
 
 
 export default {
@@ -15,17 +16,18 @@ export default {
     async execute(bot: DiscordBot, interaction: Discord.ChatInputCommandInteraction) {
         await interaction.deferReply({flags: [Discord.MessageFlags.Ephemeral]})
 
+        let achMod = await bot.requireModule("achievements", AchievementsModule)
         let embed: Discord.ContainerBuilder | undefined = undefined
         let targetUser = await interaction.options.getUser("user")
         if (targetUser) {
             let targetMember = await interaction.guild.members.fetch(targetUser.id)
             if (targetMember) {
-                embed = await bot.modules.get("achievements").createAchievementsEmbed(targetMember)
+                embed = await achMod.createAchievementsEmbed(targetMember)
             } else {
-                embed = await bot.modules.get("achievements").createAchievementsEmbed(interaction.member)
+                embed = await achMod.createAchievementsEmbed(interaction.member)
             }
         } else {
-            embed = await bot.modules.get("achievements").createAchievementsEmbed(interaction.member)
+            embed = await achMod.createAchievementsEmbed(interaction.member)
         }
 
         if (!embed) {

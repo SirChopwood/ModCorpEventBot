@@ -1,6 +1,7 @@
 // @ts-ignore
 import * as Discord from "discord.js";
 import DiscordBot from "../../../bot.js";
+import ArchiverModule from "../module.js";
 
 
 export default {
@@ -14,7 +15,7 @@ export default {
         if (!bot.permissions.isAdmin(interaction.user)) {
             await interaction.reply({content: "You do not have permission for this!", flags: Discord.MessageFlags.Ephemeral});
         }
-        let module = bot.modules.get("archiver")
+        let module = await bot.requireModule("archiver", ArchiverModule)
 
         let sourceChannel = interaction.channel as Discord.BaseGuildTextChannel
         if (!sourceChannel || !interaction.channel.isTextBased()) {

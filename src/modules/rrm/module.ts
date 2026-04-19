@@ -1,6 +1,6 @@
 import DiscordBotModule from "../../module.js";
 import DiscordBot from "../../bot";
-import TwitchModule from "../twitch/module";
+import TwitchModule from "../twitch/module.js";
 
 
 export default class RRMModule extends DiscordBotModule {
@@ -18,12 +18,7 @@ export default class RRMModule extends DiscordBotModule {
     }
 
     override async postInit(): Promise<void> {
-        let twitch = this.bot.modules.get("twitch") as TwitchModule | undefined
-        if (!twitch) {
-            this.log(this.bot.chalk.bold.redBright("Twitch Module not found!"))
-            return
-        }
-        this.twitch = twitch
+        this.twitch = await this.bot.requireModule("twitch", TwitchModule)
         this.refreshTimer = setInterval(this.refreshSession.bind(this), 30000)
         await super.postInit();
     }

@@ -137,7 +137,7 @@ export default class DiscordBot{
         this.botLog("Done!")
     }
 
-    async shutdown() {
+    async shutdown(): Promise<never> {
         this.botLog("Shutting Down...")
         await this.unmountModules()
         this.botLog("Goodbye!")
@@ -253,5 +253,18 @@ export default class DiscordBot{
             await guild.members.fetch({force: true})
             this.botLog(`${this.chalk.magenta(guild.name)} - All Guild Members Fetched`)
         }
+    }
+
+    async requireModule<T extends DiscordBotModule>(moduleName: string, moduleType: new (...args: any[]) => T): Promise<T> {
+        let module = await this.getModule(moduleName, moduleType)
+        if (module) {
+            return module as T
+        }
+        this.botLog(this.chalk.bold.redBright(`Module '${moduleName}' not found!`))
+        return await this.shutdown()
+    }
+
+    async getModule<T extends DiscordBotModule>(moduleName: string, moduleType: new (...args: any[]) => T): Promise<T | undefined> {
+        return this.modules.get(moduleName) as T | undefined
     }
 }

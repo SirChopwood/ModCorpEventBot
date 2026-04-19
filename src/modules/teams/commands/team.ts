@@ -1,6 +1,7 @@
 // @ts-ignore
 import * as Discord from "discord.js";
 import DiscordBot from "../../../bot.js";
+import TeamsModule from "../module.js";
 
 export default {
     data: new Discord.SlashCommandBuilder()
@@ -106,27 +107,28 @@ export default {
         ),
 
     async execute(bot: DiscordBot, interaction: Discord.ChatInputCommandInteraction) {
+        let teamsModule = await bot.requireModule("teams", TeamsModule)
         const subCommand = interaction.options.getSubcommand()
         switch (subCommand) {
             case 'create':
-                await this.create(bot, interaction)
+                await this.create(bot, teamsModule, interaction)
                 break;
             case 'info':
-                await this.info(bot, interaction)
+                await this.info(bot, teamsModule, interaction)
                 break;
             case 'edit':
-                await this.edit(bot, interaction)
+                await this.edit(bot, teamsModule, interaction)
                 break;
             case 'link':
-                await this.link(bot, interaction)
+                await this.link(bot, teamsModule, interaction)
                 break;
             case 'assignment':
-                await this.assignment(bot, interaction)
+                await this.assignment(bot, teamsModule, interaction)
                 break;
         }
     },
 
-    async create(bot: DiscordBot, interaction: Discord.ChatInputCommandInteraction){
+    async create(bot: DiscordBot, teamsModule: TeamsModule, interaction: Discord.ChatInputCommandInteraction){
         if (!bot.permissions.isAdmin(interaction.member)) {return}
 
         let embed = new Discord.EmbedBuilder()
@@ -160,7 +162,7 @@ export default {
 
         if (creationResponse.ok) {
             const newTeam = await creationResponse.json()
-            embed = await bot.modules.get("teams").buildTeamEmbed(newTeam[0])
+            embed = teamsModule.buildTeamEmbed(newTeam[0])
             await interaction.editReply({
                 content: null,
                 poll: null,
@@ -180,7 +182,7 @@ export default {
         }
     },
 
-    async info(bot: DiscordBot, interaction: Discord.ChatInputCommandInteraction){
+    async info(bot: DiscordBot, teamsModule: TeamsModule, interaction: Discord.ChatInputCommandInteraction){
         let targetName: string = interaction.options.getString('name')
         let targetId: number = interaction.options.getInteger("id")
 
@@ -214,14 +216,14 @@ export default {
                 .addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)
 
             let leadingScoreTeam = null
-            for (let team of bot.modules.get("teams").currentTeams.values()) {
+            for (let team of teamsModule.currentTeams.values()) {
                 if (!leadingScoreTeam || team.score > leadingScoreTeam.score) {
                     leadingScoreTeam = team
                 }
             }
 
-            let ratios = await bot.modules.get("teams").getTeamRatios()
-            for (let team of bot.modules.get("teams").currentTeams.values()) {
+            let ratios = await teamsModule.getTeamRatios()
+            for (let team of teamsModule.currentTeams.values()) {
                 let newSection = new Discord.SectionBuilder()
                     .setThumbnailAccessory((thumbnail: Discord.ThumbnailBuilder) => thumbnail
                         .setURL(team.logo_url)
@@ -268,7 +270,7 @@ export default {
 
         if (fetchResponse!.ok) {
             const newTeam = await fetchResponse!.json()
-            let embed = await bot.modules.get("teams").buildTeamEmbed(newTeam)
+            let embed = await teamsModule.buildTeamEmbed(newTeam)
             await interaction.editReply({
                 content: null,
                 components: [embed],
@@ -282,7 +284,7 @@ export default {
         }
     },
 
-    async edit(bot: DiscordBot, interaction: Discord.ChatInputCommandInteraction){
+    async edit(bot: DiscordBot, teamsModule: TeamsModule, interaction: Discord.ChatInputCommandInteraction){
         if (!bot.permissions.isAdmin(interaction.member)) {return}
 
         let embed = new Discord.EmbedBuilder()
@@ -328,7 +330,7 @@ export default {
 
         if (editResponse.ok) {
             const newTeam = await editResponse.json()
-            embed = await bot.modules.get("teams").buildTeamEmbed(newTeam[0])
+            embed = await teamsModule.buildTeamEmbed(newTeam[0])
             await interaction.editReply({
                 content: null,
                 poll: null,
@@ -348,7 +350,7 @@ export default {
         }
     },
 
-    async link(bot: DiscordBot, interaction: Discord.ChatInputCommandInteraction){
+    async link(bot: DiscordBot, teamsModule: TeamsModule, interaction: Discord.ChatInputCommandInteraction){
         if (!bot.permissions.isAdmin(interaction.member)) {return}
 
         let embed = new Discord.EmbedBuilder()
@@ -379,7 +381,7 @@ export default {
 
         if (linkResponse.ok) {
             const newTeam = await linkResponse.json()
-            embed = await bot.modules.get("teams").buildTeamEmbed(newTeam[0])
+            embed = await teamsModule.buildTeamEmbed(newTeam[0])
             await interaction.editReply({
                 content: null,
                 poll: null,
@@ -399,7 +401,7 @@ export default {
         }
     },
 
-    async assignment(bot: DiscordBot, interaction: Discord.ChatInputCommandInteraction){
+    async assignment(bot: DiscordBot, teamsModule: TeamsModule, interaction: Discord.ChatInputCommandInteraction){
         if (!bot.permissions.isAdmin(interaction.member)) {return}
 
         let embed = new Discord.EmbedBuilder()
