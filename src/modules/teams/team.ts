@@ -11,7 +11,7 @@ export default class TeamClass {
     logo_url: string
     score: number
     role: Discord.Role
-    channel: Discord.GuildTextBasedChannel
+    channel: Discord.TextChannel
     server: Discord.Guild
 
     constructor(data: Team) {
