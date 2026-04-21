@@ -152,8 +152,8 @@ export class TwitchCommandSubModule extends DiscordBotSubModule {
         }
     }
 
-    protected async registerFile(path: string, data: any) {
-        await super.registerFile(path, data)
+    protected async registerFile(name: string, path: string, data: any) {
+        await super.registerFile(name, path, data)
         this.twitchModule?.commands.set(data.data.name.toLowerCase(), data)
         this.module.log(`${this.module.bot.chalk.magentaBright("Twitch Command")}: ${data.data.name} ${this.module.bot.chalk.grey(` - ${data.data.description}`)}`)
     }
