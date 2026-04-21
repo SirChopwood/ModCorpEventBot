@@ -16,6 +16,7 @@ export default class DiscordBotModule {
     desc: string
     colour: string
     commandName: string
+    subModules: Record<string, {}> = {}
 
     constructor(bot: DiscordBot, path: string, {
         name = "Untitled Module",
@@ -37,7 +38,7 @@ export default class DiscordBotModule {
     }
 
     async initialise () {
-        await this.registerCommands()
+        await new DiscordCommandSubModule(this).initialise()
     }
 
     async postInit () {
@@ -61,47 +62,81 @@ export default class DiscordBotModule {
         this.bot.log(source, ...args);
     }
 
-    async registerCommands () {
-        const commandsPath = path.join(path.dirname(this.path), "commands")
+}
 
-        if (fs.existsSync(commandsPath)) {
-            const foundCommands = fs.readdirSync(commandsPath, { withFileTypes: true, recursive: true })
-                .filter(dirent => !dirent.isDirectory())
-                .filter((dirent) => {
-                    return !dirent.name.startsWith("_")
-                })
-                .map(dirent => dirent.name)
-            for (const command of foundCommands) {
-                let {default: commandClass} = await import(path.join("file://", commandsPath, command))
-                for (const dataSource of ["data", "data2", "data3"]) {
-                    if (!commandClass[dataSource]) {continue}
-                    const commandData = commandClass[dataSource].toJSON()
-                    this.bot.commands.set(commandData.name, commandClass)
+export class DiscordBotSubModule {
+    module: DiscordBotModuleType
+    path: string
 
-                    let type = ""
-                    let name = ""
-                    let desc = ""
+    constructor(module: DiscordBotModuleType, path: string) {
+        this.module = module
+        this.path = path
+    }
 
-                    switch (commandData.type) {
-                        case Discord.ApplicationCommandType.ChatInput: // SLASH COMMANDS
-                            type = this.bot.chalk.yellowBright("Slash Command")
-                            name = commandData.name
-                            desc = this.bot.chalk.grey("- " + commandData.description)
-                            break
-                        case Discord.ApplicationCommandType.User: // USER CONTEXT MENU
-                            type = this.bot.chalk.magenta("Context (User)")
-                            name = commandData.name
-                            break
-                        case Discord.ApplicationCommandType.Message: // MESSAGE CONTEXT MENU
-                            type = this.bot.chalk.blue("Context (Message)")
-                            name = commandData.name
-                            break
-                    }
-                    this.log(`${type}: ${name} ${desc}`)
-                }
+    async initialise() {
+        const subModulePath = path.join(path.dirname(this.module.path), this.path)
+        if (!fs.existsSync(subModulePath)) {
+            this.module.log(this.module.bot.chalk.grey.italic(`SubModule path ${this.path} not found at ${subModulePath}.`))
+            return
+        }
+
+        const fileNames = fs.readdirSync(subModulePath, { withFileTypes: true, recursive: true })
+            .filter(dirent => !dirent.isDirectory())
+            .filter((dirent) => {
+                return !dirent.name.startsWith("_") && (dirent.name.endsWith(".js") || dirent.name.endsWith(".ts"))
+            })
+            .map(dirent => dirent.name)
+
+        for (const fileName of fileNames) {
+            let filePath = path.join("file://", subModulePath, fileName)
+            let {default: file} = await import(filePath)
+            try {
+                await this.registerFile(filePath, file)
+            } catch (e) {
+                this.module.log(`Failed to register file at ${filePath} ${e}`)
+                this.module.log(this.module.bot.chalk.redBright(e))
             }
-        } else {
-            this.log(this.bot.chalk.grey.italic(`No Slash Commands found.`))
+        }
+        this.module.subModules[this.path] = this
+    }
+
+    protected async registerFile(path: string, data: any) {
+
+    }
+}
+
+export class DiscordCommandSubModule extends DiscordBotSubModule {
+    constructor(module: DiscordBotModuleType) {
+        super(module, "commands")
+    }
+
+    protected async registerFile(path: string, data: any): Promise<void> {
+        await super.registerFile(path, data)
+        for (const dataSource of ["data", "data2", "data3"]) {
+            if (!data[dataSource]) {continue}
+            const commandData = data[dataSource].toJSON()
+            this.module.bot.commands.set(commandData.name, data)
+
+            let type = ""
+            let name = ""
+            let desc = ""
+
+            switch (commandData.type) {
+                case Discord.ApplicationCommandType.ChatInput: // SLASH COMMANDS
+                    type = this.module.bot.chalk.yellowBright("Slash Command")
+                    name = commandData.name
+                    desc = this.module.bot.chalk.grey("- " + commandData.description)
+                    break
+                case Discord.ApplicationCommandType.User: // USER CONTEXT MENU
+                    type = this.module.bot.chalk.magenta("Context (User)")
+                    name = commandData.name
+                    break
+                case Discord.ApplicationCommandType.Message: // MESSAGE CONTEXT MENU
+                    type = this.module.bot.chalk.blue("Context (Message)")
+                    name = commandData.name
+                    break
+            }
+            this.module.log(`${type}: ${name} ${desc}`)
         }
     }
 }
