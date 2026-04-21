@@ -16,7 +16,7 @@ export default class DiscordBotModule {
     desc: string
     colour: string
     commandName: string
-    subModules: Record<string, {}> = {}
+    subModules: Discord.Collection<string, DiscordBotSubModule> = new Discord.Collection()
 
     constructor(bot: DiscordBot, path: string, {
         name = "Untitled Module",
@@ -97,7 +97,7 @@ export class DiscordBotSubModule {
                 this.module.log(this.module.bot.chalk.redBright(e))
             }
         }
-        this.module.subModules[this.path] = this
+        this.module.subModules.set(this.path, this)
     }
 
     protected async registerFile(path: string, data: any) {
