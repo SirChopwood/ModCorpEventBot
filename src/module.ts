@@ -91,7 +91,7 @@ export class DiscordBotSubModule {
             let filePath = path.join("file://", subModulePath, fileName)
             let {default: file} = await import(filePath)
             try {
-                await this.registerFile(filePath, file)
+                await this.registerFile(fileName, filePath, file)
             } catch (e) {
                 this.module.log(`Failed to register file at ${filePath} ${e}`)
                 this.module.log(this.module.bot.chalk.redBright(e))
@@ -100,7 +100,7 @@ export class DiscordBotSubModule {
         this.module.subModules.set(this.path, this)
     }
 
-    protected async registerFile(path: string, data: any) {
+    protected async registerFile(name: string, path: string, data: any) {
 
     }
 }
@@ -110,8 +110,8 @@ export class DiscordCommandSubModule extends DiscordBotSubModule {
         super(module, "commands")
     }
 
-    protected async registerFile(path: string, data: any): Promise<void> {
-        await super.registerFile(path, data)
+    protected async registerFile(name: string, path: string, data: any): Promise<void> {
+        await super.registerFile(name, path, data)
         for (const dataSource of ["data", "data2", "data3"]) {
             if (!data[dataSource]) {continue}
             const commandData = data[dataSource].toJSON()
