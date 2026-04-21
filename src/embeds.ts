@@ -28,4 +28,21 @@ export default class Permissions {
                 textDisplay.setContent(description)
             )
     }
+
+    thumbnail(author: string, title: string, description: string, image_url: string, colour: Discord.ColorResolvable = Discord.Colors.Blurple): Partial<Discord.APIContainerComponent> {
+        return new Discord.ContainerBuilder()
+            .setAccentColor(colour)
+            .addSectionComponents((section: Discord.SectionBuilder) =>
+                section.addTextDisplayComponents((textDisplay: Discord.TextDisplayBuilder) =>
+                    textDisplay.setContent(`-# ${author}\n## ${title}`)
+                )
+                    .setThumbnailAccessory((thumbnail: Discord.ThumbnailBuilder) =>
+                        thumbnail.setURL(image_url)
+                    )
+            )
+            .addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)
+            .addTextDisplayComponents((textDisplay: Discord.TextDisplayBuilder) =>
+                textDisplay.setContent(description)
+            )
+    }
 }
