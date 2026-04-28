@@ -29,7 +29,7 @@ export default class DiscordBotModule {
         this.desc = desc
         this.colour = colour
         this.path = path
-        this.commandName = this.name.toLowerCase().replace(" ", "")
+        this.commandName = this.name.toLowerCase().replaceAll(" ", "")
         this.log("Loaded!")
     }
 

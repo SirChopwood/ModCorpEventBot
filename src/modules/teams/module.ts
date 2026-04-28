@@ -4,12 +4,12 @@ import TeamsEvent, {TeamsEventType} from "./event.js";
 // @ts-ignore
 import * as Discord from "discord.js";
 import TeamClass from "./team.js";
-import TestTeamsEvent from "./events/testevent.js";
 
 export default class TeamsModule extends DiscordBotModule {
     events: Discord.Collection<string, TeamsEventType> = new Discord.Collection()
     currentTeams: Discord.Collection<string, TeamClass> = new Discord.Collection()
     updateTimer: NodeJS.Timeout | undefined
+    currentEvent: TeamsEventType | undefined
 
     constructor(bot: DiscordBot, path: string) {
         super(bot, path, {
@@ -22,13 +22,16 @@ export default class TeamsModule extends DiscordBotModule {
     async initialise() {
         await super.initialise()
         await new TeamsEventSubModule(this).initialise()
-        this.updateTimer = setInterval(() => {
-            this.updateActiveTeams()
+        await this.updateActiveTeams()
+        this.updateTimer = setInterval(async () => {
+            await this.updateActiveTeams()
         }, 30*1000)
-        // setTimeout(async () => {
-        //     let classConstructor = this.events.random()
-        //     await new classConstructor().prepareGlobal()
-        // }, 3*1000)
+        setTimeout(async () => {
+            let classConstructor = this.events.random()
+            this.currentEvent = await new classConstructor(this)
+            await this.currentEvent!.initialise()
+            await this.currentEvent!.prepareEvent()
+        }, 3*1000)
     }
 
     async deinitialise() {
@@ -40,9 +43,13 @@ export default class TeamsModule extends DiscordBotModule {
         const interactionCustomIds = customId.split("-")
         switch (interactionCustomIds[0]) {
             case "events":
-                const eventInteractionCustomId = customId.replace(`events-${interactionCustomIds[1]}-`, "")
-                const eventClass = this.events.get(interactionCustomIds[1])
-                await eventClass.onInteraction(interaction, eventInteractionCustomId)
+                if (this.currentEvent) {
+                    const eventInteractionCustomId = customId.replace(`events-`, "")
+                    await this.currentEvent.onInteraction(interaction, eventInteractionCustomId)
+                } else {
+                    let embed = this.bot.embeds.failure("Interaction Failed", "There is no event active at the moment.")
+                    await interaction.reply({components: [embed], flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]})
+                }
                 return
             case "assignment":
                 await this.assignRandomTeam(interaction)
@@ -209,6 +216,39 @@ export default class TeamsModule extends DiscordBotModule {
         }
         return message
     }
+
+    getTeamInfoEmbed(team: TeamClass) {
+        return this.bot.embeds.thumbnail(
+            "Team Info",
+            team.name,
+            team.description,
+            team.logo_url,
+            Discord.resolveColor(team.colour)
+        )
+    }
+
+    getTeamHeaderEmbed(team: TeamClass, title: string, description: string) {
+        return this.bot.embeds.thumbnail(
+            team.name,
+            title,
+            description,
+            team.logo_url,
+            Discord.resolveColor(team.colour)
+        )
+    }
+
+    getMemberTeam(member: Discord.GuildMember): TeamClass | undefined {
+        for (const team of this.currentTeams.values()) {
+            if (this.isMemberInTeam(member, team)) {
+                return team
+            }
+        }
+        return undefined
+    }
+
+    isMemberInTeam(member: Discord.GuildMember, team: TeamClass): boolean {
+        return member.roles.cache.has(team.role.id)
+    }
 }
 
 export class TeamsEventSubModule extends DiscordBotSubModule {
@@ -223,7 +263,9 @@ export class TeamsEventSubModule extends DiscordBotSubModule {
 
     protected async registerFile(name: string, path: string, data: any) {
         await super.registerFile(name, path, data)
-        this.module.events.set(name.toLowerCase(), data)
-        this.module.log(`${this.module.bot.chalk.greenBright("Event")}: ${name}`)
+        let tempClass = new data() as TeamsEvent
+        await tempClass.initialise()
+        this.module.events.set(tempClass.commandName, data)
+        this.module.log(`${this.module.bot.chalk.greenBright("Event")}: ${tempClass.name} ${this.module.bot.chalk.grey(` - ${tempClass.description}`)}`)
     }
 }
