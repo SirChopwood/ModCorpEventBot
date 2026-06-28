@@ -15,9 +15,9 @@ export class RaidsCampaign extends RaidsData {
     userStats: Discord.Collection<Discord.Snowflake, {
         class: ERaidsClasses,
         team: number,
-        hasBeenHero: boolean,
-        choices: Record<number, // Encounter Index
-            Record<number, { // Round Index
+        isHero: boolean,
+        choices: Array<// Encounter Index
+            Array<{ // Round Index
                 choiceIndex: number,
                 roll: number,
                 success: boolean
@@ -62,7 +62,7 @@ export class RaidsCampaign extends RaidsData {
         this.log(`Ending Campaign...`)
         clearInterval(this.updateTimer)
         for (let team of this.teams!.currentTeams.values()) {
-            await team.channel.send(this.createCampaignStartMessage())
+            await team.channel.send(this.createCampaignEndMessage())
         }
         this.log(`Campaign Ended`)
         delete this.module.campaign
