@@ -1,6 +1,6 @@
 import DiscordBotModule from "../../module.js";
 import DiscordBot from "../../bot";
-import TwitchModule from "../twitch/module.js";
+import TwitchModule, {TwitchCommandSubModule} from "../twitch/module.js";
 
 
 export default class RRMModule extends DiscordBotModule {
@@ -17,6 +17,11 @@ export default class RRMModule extends DiscordBotModule {
         });
     }
 
+    async initialise(): Promise<void> {
+        await super.initialise()
+        await new TwitchCommandSubModule(this).initialise()
+    }
+
     override async postInit(): Promise<void> {
         this.twitch = await this.bot.requireModule("twitch", TwitchModule)
         this.refreshTimer = setInterval(this.refreshSession.bind(this), 30000)
@@ -24,7 +29,6 @@ export default class RRMModule extends DiscordBotModule {
     }
 
     async refreshSession() {
-        //this.log("Refreshing session...")
         let response = await fetch(`${process.env.API_HOST}/api/rrm_v2/session/active`, {
             method: "POST",
             body: JSON.stringify({

@@ -1,4 +1,4 @@
-import DiscordBotModule from "../../module.js";
+import DiscordBotModule, {DiscordBotModuleType, DiscordBotSubModule, DiscordCommandSubModule} from "../../module.js";
 import DiscordBot from "../../bot";
 // @ts-ignore
 import {AccessToken, RefreshingAuthProvider} from "@twurple/auth";
@@ -72,10 +72,7 @@ export default class TwitchModule extends DiscordBotModule {
 
         // Message Handling
         this.chatBot.onMessage(this.onMessage.bind(this))
-        await this.mountCommands(this)
-        for await (let module of this.bot.modules.values()) {
-            await this.mountCommands(module)
-        }
+        await new TwitchCommandSubModule(this).initialise()
         await super.initialise()
     }
 
@@ -140,23 +137,24 @@ export default class TwitchModule extends DiscordBotModule {
             }
         }
     }
+}
 
-    async mountCommands(module: DiscordBotModule) {
-        const commandsPath = path.join(path.dirname(module.path), "twitch")
-        if (fs.existsSync(commandsPath)) {
-            const foundCommands = fs.readdirSync(commandsPath, {withFileTypes: true, recursive: true})
-                .filter(dirent => !dirent.isDirectory())
-                .filter((dirent) => {
-                    return !dirent.name.startsWith("_")
-                })
-                .map(dirent => dirent.name)
-            for (const command of foundCommands) {
-                let {default: commandClass} = await import(path.join("file://", commandsPath, command))
-                this.commands.set(commandClass.data.name.toLowerCase(), commandClass)
-                module.log(`${this.bot.chalk.magentaBright("Twitch Command")}: ${commandClass.data.name} ${this.bot.chalk.grey(` - ${commandClass.data.description}`)}`)
-            }
-        } else {
-            module.log(this.bot.chalk.grey.italic(`No Twitch Commands found.`))
+export class TwitchCommandSubModule extends DiscordBotSubModule {
+    twitchModule: TwitchModule | undefined
+    constructor(module: DiscordBotModuleType) {
+        super(module, "twitch")
+    }
+
+    async initialise() {
+        this.twitchModule = await this.module.bot.getModule("twitch", TwitchModule)
+        if (this.twitchModule) {
+            await super.initialise()
         }
+    }
+
+    protected async registerFile(name: string, path: string, data: any) {
+        await super.registerFile(name, path, data)
+        this.twitchModule?.commands.set(data.data.name.toLowerCase(), data)
+        this.module.log(`${this.module.bot.chalk.magentaBright("Twitch Command")}: ${data.data.name} ${this.module.bot.chalk.grey(` - ${data.data.description}`)}`)
     }
 }

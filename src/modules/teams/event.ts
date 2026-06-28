@@ -1,142 +1,80 @@
-import DiscordBot from "../../bot";
+import TeamsModule from "./module";
+import TeamClass from "./team";
 // @ts-ignore
 import * as Discord from "discord.js";
-import {Team} from "./teams";
-import {DiscordBotModuleType} from "../../module";
-import TeamClass from "./team";
 
 export interface TeamsEventType extends TeamsEvent {
     [index: string]: any
 }
 
 export default class TeamsEvent {
-    bot: DiscordBot
-    module: DiscordBotModuleType
-    name: string
-    desc: string
-    instructions: string
-    commandName: string
-    teamRefs: Record<string, {
-        guild: Discord.Guild,
-        channel: Discord.GuildTextBasedChannel,
-        role: Discord.Role,
-        messages: Record<string, Discord.Snowflake>
-        components: Record<Discord.Snowflake, Array<Discord.Component>>
-    }> = {}
-    teams: Record<string, TeamClass> = {}
+    module: TeamsModule
+    name = "Undefined Event Name"
+    description = "Undefined Event Description."
+    instructions = "Do nothing."
+    commandName: string = ""
 
-
-    constructor(bot: DiscordBot, module: DiscordBotModuleType, {
-        name = "Event Name",
-        desc = "A simple multiple choice question.",
-        instructions = "How to play this particular event."
-    }) {
-        this.bot = bot
+    constructor(module: TeamsModule) {
         this.module = module
-        this.name = name
-        this.desc = desc
-        this.instructions = instructions
+    }
+
+    // Call immediately after construct
+    async initialise() {
         this.commandName = this.name.toLowerCase().replaceAll(" ", "")
     }
 
-    log(...args: any[]) {
-        this.module.subLog([this.bot.chalk.redBright(this.name)], ...args);
-    }
-
+    // Call to properly Prepare the Event to begin
     async prepareEvent() {
-        this.log(`Executing ${this.bot.chalk.bold(this.name)} Event`)
-        const eventDuration = Number(process.env.TEAMS_EVENT_DURATION) | 60000
-        setTimeout(this.updateEvent.bind(this), eventDuration - 30000, "30s remaining!")
-        setTimeout(this.updateEvent.bind(this), eventDuration - 10000, "10s remaining!")
-        setTimeout(this.finishEvent.bind(this), eventDuration)
+        await this.prepareGlobal()
+        for await (let team of this.module.currentTeams.values()) {
+            await this.prepareTeam(team)
+        }
     }
 
-    async triggerEvent(team: TeamClass) {
-        if (!(team.server && team.channel && team.role)) {return}
-        this.teams[team.id] = team
-
-        this.teamRefs[team.id] = {
-            guild: team.server,
-            channel: team.channel,
-            role: team.role,
-            messages: {},
-            components: {}
+    // Call to properly Start the Event
+    async startEvent() {
+        await this.startGlobal()
+        for await (let team of this.module.currentTeams.values()) {
+            await this.startTeam(team)
         }
+    }
+
+    // Call to properly End the Event
+    async endEvent() {
+        await this.endGlobal()
+        for await (let team of this.module.currentTeams.values()) {
+            await this.endTeam(team)
+        }
+    }
+
+
+    // Called when the event is selected with global context
+    async prepareGlobal() {
+        this.module.log(`Preparing Event ${this.module.bot.chalk.greenBright(this.name)}${this.module.bot.chalk.grey(' - ' + this.description)}`)
+    }
+
+    // Called when the event is selected per team involved
+    async prepareTeam(team: TeamClass) {
+    }
+
+    // Called when the event begins
+    async startGlobal() {
+        this.module.log(`Starting Event ${this.module.bot.chalk.greenBright(this.name)}`)
+    }
+
+    // Called when the event begins for each team involved
+    async startTeam(team: TeamClass) {
+    }
+
+    // Called when the event ends
+    async endGlobal() {
+        this.module.log(`Ending Event ${this.module.bot.chalk.greenBright(this.name)}`)
+    }
+
+    // Called when the event ends for each team involved
+    async endTeam(team: TeamClass) {
     }
 
     async onInteraction(interaction: Discord.Interaction, customId: string) {
-    }
-
-    async updateEvent(text: string) {
-        this.log(text)
-    }
-
-    async finishEvent() {
-        this.log("Event Concluded")
-    }
-
-    async getTeamMessageAndComponent(team: TeamClass) {
-        let messageId = this.teamRefs[team.id].messages["Main"]
-        let channel = this.teamRefs[team.id].channel
-        let oldMessage = await channel.messages.fetch(messageId)
-        let comps = this.teamRefs[team.id].components[messageId]
-        return {
-            channel: channel,
-            message: oldMessage,
-            components: comps
-        }
-    }
-
-    async getMessageHeader(team: TeamClass){
-        let role = await this.teamRefs[team.id].guild.roles.fetch(process.env.TEAMS_PING_ROLE)
-
-
-        return new Discord.ContainerBuilder()
-            .setAccentColor(Discord.resolveColor(team.colour))
-            .addSectionComponents((section: Discord.SectionBuilder) => section
-                .addTextDisplayComponents([
-                    (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
-                        .setContent(`# ${this.name}\n${this.instructions}\n-# <@&${role?.id}>`)
-                ])
-                .setThumbnailAccessory((thumbnail: Discord.ThumbnailBuilder) => thumbnail
-                    .setURL(team.logo_url)
-                )
-            )
-            .addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)
-    }
-
-    startResultMessage(team: TeamClass, title: string) {
-        return new Discord.ContainerBuilder()
-            .setAccentColor(Discord.resolveColor(team.colour))
-            .addTextDisplayComponents([
-                (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
-                    .setContent(title)
-            ])
-            .addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)
-    }
-
-    async finishResultMessage(team: TeamClass, message: Discord.ContainerBuilder) {
-        message.addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)
-            .addTextDisplayComponents([
-                (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
-                    .setContent("-# If you would like to opt-in or opt-out of Notifications, use the dropdown below:")
-            ])
-
-        let answersSelect = new Discord.StringSelectMenuBuilder()
-            .setCustomId(`${this.module.commandName}-ping`)
-            .setPlaceholder("Change Notification Preference")
-            .addOptions([
-                new Discord.StringSelectMenuOptionBuilder()
-                    .setLabel("Opt In to Notifications")
-                    .setValue("opt-in"),
-                new Discord.StringSelectMenuOptionBuilder()
-                    .setLabel("Opt Out of Notifications")
-                    .setValue("opt-out")
-            ])
-
-        message.addActionRowComponents((actionRow: Discord.ActionRowBuilder) =>
-            actionRow.setComponents(answersSelect)
-        )
-        return message
     }
 }

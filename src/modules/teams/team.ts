@@ -1,4 +1,3 @@
-import {Team} from "./teams";
 // @ts-ignore
 import * as Discord from "discord.js";
 import DiscordBot from "../../bot"
@@ -12,9 +11,9 @@ export default class TeamClass {
     score: number
     role: Discord.Role
     channel: Discord.TextChannel
-    server: Discord.Guild
+    guild: Discord.Guild
 
-    constructor(data: Team) {
+    constructor(data: any) {
         this.id = data.id
         this.name = data.name
         this.description = data.description
@@ -23,9 +22,9 @@ export default class TeamClass {
         this.score = data.score
     }
 
-    async fetchDiscordData(bot: DiscordBot, data: Team) {
-        this.server = await bot.client.guilds.fetch(data.discord.server)
-        this.channel = await this.server.channels.fetch(data.discord.channel)
-        this.role = await this.server.roles.fetch(data.discord.role)
+    async fetchDiscordData(bot: DiscordBot, data: any) {
+        this.guild = await bot.client.guilds.fetch(data.guild)
+        this.channel = await this.guild.channels.fetch(data.channel)
+        this.role = await this.guild.roles.fetch(data.role)
     }
 }

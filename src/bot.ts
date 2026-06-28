@@ -6,6 +6,7 @@ import * as fs from "node:fs";
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Permissions from "./permissions.js";
+import Embeds from "./embeds.js";
 import DiscordBotModule from "./module";
 import * as util from "node:util";
 const __filename = fileURLToPath(import.meta.url);
@@ -18,11 +19,12 @@ export default class DiscordBot{
     modules: Discord.Collection<string, DiscordBotModule>
     client: Discord.Client;
     permissions: Permissions
+    embeds: Embeds
     chalk: ChalkInstance
     cooldowns = new Discord.Collection()
     logfile: fs.WriteStream
 
-        constructor() {
+    constructor() {
         if (!fs.existsSync(logDir)) {
             fs.mkdirSync(logDir)
         }
@@ -43,6 +45,7 @@ export default class DiscordBot{
         this.commands = new Discord.Collection()
         this.modules = new Discord.Collection()
         this.permissions = new Permissions()
+        this.embeds = new Embeds()
         this.chalk = chalk
 
         this.client.once(Discord.Events.ClientReady, (readyClient: Discord.Client) => this.onLogin(readyClient))

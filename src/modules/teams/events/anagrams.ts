@@ -1,194 +1,196 @@
+import TeamsModule from "../module";
+import TeamClass from "../team";
 // @ts-ignore
 import * as Discord from "discord.js";
-import DiscordBot from "../../../bot.js";
-import TeamsEventQuestion from "../event_question.js";
-import {Team} from "../teams.js";
-// @ts-ignore
-import {GoogleSpreadsheetRow} from "google-spreadsheet";
-import {DiscordBotModuleType} from "../../../module";
-import TeamClass from "../team";
+import TeamsEvent from "../event.js";
+import * as module from "node:module";
 
-export default class Anagrams extends TeamsEventQuestion {
-    currentQuestion: {
-        author: string,
-        reward: string,
-        originalWord: string,
-        shuffledWord: string,
-        hint: string
-    } | null = null
-    messageReferences: Record<string, Discord.ContainerComponentBuilder> = {}
+type TeamsAnagramQuestion = {
+    author: string,
+    reward: number,
+    originalPhrase: string,
+    shuffledPhrase?: string,
+    hint: string,
+    image: string
+}
 
-    constructor(bot: DiscordBot, module: DiscordBotModuleType) {
-        super(bot, module, {
-            name: "Anagrams",
-            desc: "Randomised orders of letters.",
-            instructions: "Decrypt and organise the letters to spell out a word or phrase. \n(Spaces are marked as an Underscore '_')"
-        })
+export default class TeamsEventAnagrams extends TeamsEvent {
+    name = "Anagrams"
+    description = "Asks each team a question involving a word that's had its letters shuffled."
+    instructions = "Decode the original phrase from the scrambled one provided. Answer by using the button below and typing the correct phrase. (Case-Insensitive, Spaces are represented by Underscores '_')"
+    currentQuestion: TeamsAnagramQuestion | undefined
+    responses: Discord.Collection<number, Discord.Collection<Discord.Snowflake, string>> = new Discord.Collection()
+    acceptingResponses = false
+
+    constructor(module: TeamsModule) {
+        super(module)
     }
 
     async prepareEvent() {
         await super.prepareEvent()
-        // Prepare Google Docky
-        let {document, sheet, headers} = await this.module.getSpreadsheet(1)
-        let questionRows: GoogleSpreadsheetRow[] = await sheet.getRows()
-        questionRows = questionRows.filter((value) => {return value.get(headers[2]) !== ""})
-        const question = questionRows[Math.floor(Math.random() * (questionRows.length-1))]
-
-        // Prepare Question and Answer
-        const originalWord = question.get(headers[2]).toLowerCase() as string
-        const shuffledWord = originalWord.toLowerCase().split("")
-        let spaces: Array<number> = []
-        shuffledWord.forEach((letter, index) => {
-            if (letter === " ") {
-                shuffledWord.splice(index, 1)
-                spaces.push(index)
-            }
-        })
-        this.shuffle(shuffledWord)
-        spaces.forEach(space => {
-            shuffledWord.splice(space, 0, "_")
-        })
-
-        // Setup for Triggers
-        this.currentQuestion = {
-            author: question.get(headers[0]),
-            reward: question.get(headers[1]),
-            originalWord: originalWord,
-            shuffledWord: shuffledWord.join(" "),
-            hint: question.get(headers[3])
-        }
-        this.messageReferences = {}
-        this.resetScores()
+        setTimeout(async () => {
+            await this.startEvent()
+        }, 30*1000)
+        setTimeout(async () => {
+            await this.endEvent()
+        }, 60*1000)
     }
 
-    async triggerEvent(team: TeamClass) {
-        await super.triggerEvent(team)
-        if (this.currentQuestion !== null) {
-            // Build Base Message
-            let message = await this.getMessageHeader(team)
-            message.addTextDisplayComponents([
-                (textDisplay: Discord.TextDisplayBuilder) => textDisplay
-                    .setContent(`## ${Discord.inlineCode(this.currentQuestion!.shuffledWord)}${this.currentQuestion!.hint ? String("\nHint: "+this.currentQuestion!.hint) : ""}\n-# By ${this.currentQuestion!.author}`)
-            ])
+    async startEvent() {
+        await super.startEvent()
+    }
 
-            message.addActionRowComponents((actionRow: Discord.ActionRowBuilder) =>
-                actionRow.setComponents(
-                    new Discord.ButtonBuilder()
-                        .setLabel("Click to Answer!")
-                        .setStyle(Discord.ButtonStyle.Primary)
-                        .setCustomId(`${this.module.commandName}-events-${this.commandName}-open`)
+    async endEvent() {
+        await super.endEvent()
+    }
+
+    setNewQuestion(question: TeamsAnagramQuestion) {
+        function shuffle(array: Array<any>) {
+            let currentIndex = array.length;
+            // While there remain elements to shuffle...
+            while (currentIndex != 0) {
+                // Pick a remaining element...
+                let randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+                // And swap it with the current element.
+                [array[currentIndex], array[randomIndex]] = [
+                    array[randomIndex], array[currentIndex]];
+            }
+        }
+
+        let phraseWords = question.originalPhrase.toLowerCase().split(" ")
+        let shuffledPhrase = ""
+
+        // For each word
+        phraseWords.forEach((word, wordIndex) => {
+            let letters = word.split("")
+            // Shuffle letters within
+            shuffle(letters)
+            // Stitch back together
+            letters.forEach((letter, letterIndex) => {
+                shuffledPhrase += letter
+            })
+            if (wordIndex < phraseWords.length-1) {
+                shuffledPhrase += "_"
+            }
+        })
+        question.shuffledPhrase = shuffledPhrase
+        this.currentQuestion = question
+    }
+
+    async prepareGlobal() {
+        await super.prepareGlobal()
+        this.setNewQuestion({
+            author: "Ramiris",
+            reward: 5,
+            originalPhrase: "Hello There Val",
+            hint: "This is a supposed hint.",
+            image: "https://cdn.discordapp.com/attachments/1395279350403960922/1395279387426947184/redwood.png?ex=69f19a31&is=69f048b1&hm=1779ed3bebe125d07672a2ccef188aeb7e2be9102de626fb9f01798444043f3a&"
+        })
+    }
+
+    async prepareTeam(team: TeamClass) {
+        this.responses.set(team.id, new Discord.Collection())
+        let embed = this.module.getTeamHeaderEmbed(team, "Question in 30s", `Prepare to answer one of the questions. You can work together or alone, points will be earned to help your team take the lead. Please, in the spirit of the game and fairness, do not use any external tools or aids to gain an unfair advantage. Good luck ${team.name}!`)
+        await team.channel.send({components: [embed], flags: Discord.MessageFlags.IsComponentsV2})
+    }
+
+    async startGlobal() {
+        this.acceptingResponses = true
+    }
+
+    async startTeam(team: TeamClass) {
+        let text = `# ${Discord.inlineCode(this.currentQuestion!.shuffledPhrase)}`
+        if (this.currentQuestion?.hint) text += `\nHint: ||${this.currentQuestion!.hint}||`
+
+        let embed = this.module.getTeamHeaderEmbed(team, this.name, this.instructions)
+        embed.addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)
+        embed.addSectionComponents((section: Discord.SectionBuilder) => section
+                .addTextDisplayComponents((textDisplay: Discord.TextDisplayBuilder) => textDisplay
+                    .setContent(text)
+                )
+                .setButtonAccessory((button: Discord.ButtonBuilder) => button
+                    .setLabel("Click to Answer!")
+                    .setStyle(Discord.ButtonStyle.Primary)
+                    .setCustomId(`${this.module.commandName}-events-openmodal`)
+                )
+        )
+        if (this.currentQuestion?.image) {
+            embed.addMediaGalleryComponents((media: Discord.MediaGalleryBuilder) => media
+                .addItems((item: Discord.MediaGalleryItemBuilder) => item
+                    .setURL(this.currentQuestion!.image)
                 )
             )
-
-            // Send Message
-            let sentMessage = await this.teamRefs[team.id].channel.send({
-                components: [message],
-                flags: [Discord.MessageFlags.IsComponentsV2]
-            })
-
-            // Store refs
-            this.messageReferences[team.id] = message
-            this.addTeam(team, sentMessage)
         }
+        await team.channel.send({components: [embed], flags: Discord.MessageFlags.IsComponentsV2})
+    }
+
+    async endGlobal() {
+        this.acceptingResponses = false
+    }
+
+    async endTeam(team: TeamClass) {
+        let teamResponses = this.responses.get(team.id)
+        let teamScore = 0
+        for (let result of teamResponses.values()) {
+            if (result === this.currentQuestion!.originalPhrase.toLowerCase()) {
+                teamScore++
+            }
+        }
+        let teamPercentage = (teamScore / teamResponses!.size) * 100
+        teamScore = teamScore * (this.currentQuestion?.reward ? this.currentQuestion.reward : 1)
+        let desc
+        if (teamResponses!.size === 0) {
+            desc = `Unfortunately nobody answered in time, better luck next time!`
+        } else {
+            desc = `As a team, you scored a total of ${teamScore} points, with ${teamPercentage}% of the team getting the answer correct.`
+        }
+
+        let embed = this.module.getTeamHeaderEmbed(team, "Time is up!", desc)
+        await team.channel.send({components: [embed], flags: Discord.MessageFlags.IsComponentsV2})
     }
 
     async onInteraction(interaction: Discord.Interaction, customId: string) {
-        let embed = new Discord.EmbedBuilder()
-        for (const team of Object.values(this.teams)) {
-            if (interaction.member.roles.cache.has(team.role.id)) {
-                if (customId === "open" && interaction.isButton()) {
-                    if (this.scores.teams[team.id].AnswerUsers.includes(interaction.user.id)) {
-
-                        // DUPLICATE ANSWER
-                        embed.setColor(Discord.Colors.Red)
-                        embed.setTitle("You have already answered this question!")
-                        await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
-                        break
-
-                    } else {
-
-                        const modal = new Discord.ModalBuilder()
-                            .setCustomId(`${this.module.commandName}-events-${this.commandName}-modal`)
-                            .setTitle("Anagrams")
-
-                        modal.addComponents(new Discord.ActionRowBuilder()
-                            .addComponents(new Discord.TextInputBuilder()
-                                .setLabel("Answer")
-                                .setCustomId(`answer-text`)
-                                .setPlaceholder("Write your answer here...")
-                                .setStyle(Discord.TextInputStyle.Short)
-                                .setRequired(true)
-                            )
+        switch (customId) {
+            case "openmodal":
+                if (this.acceptingResponses) {
+                    const modal = new Discord.ModalBuilder()
+                        .setCustomId(`${this.module.commandName}-events-closemodal`)
+                        .setTitle("Anagrams")
+                    modal.addTextDisplayComponents((textDisplay: Discord.TextDisplayBuilder) => textDisplay
+                        .setContent(`${this.instructions}\n# ${Discord.inlineCode(this.currentQuestion!.shuffledPhrase)}`)
+                    )
+                    modal.addLabelComponents((label: Discord.LabelBuilder) => label
+                        .setLabel("Answer")
+                        .setTextInputComponent((input: Discord.TextInputBuilder) => input
+                            .setCustomId("answer-text")
+                            .setStyle(Discord.TextInputStyle.Short)
+                            .setPlaceholder("Write your answer here...")
+                            .setRequired(true)
                         )
-
-                        await interaction.showModal(modal)
-                        break
-                    }
-                } else if (customId === "modal" && interaction.isModalSubmit() && this.currentQuestion) {
-                    const result = interaction.fields.getTextInputValue("answer-text").toLowerCase() === this.currentQuestion.originalWord
-                    await this.submitResult(interaction, team.id, result ? Number(this.currentQuestion.reward) : 0)
+                    )
+                    await interaction.showModal(modal)
                 } else {
-                    embed.setColor(Discord.Colors.Red)
-                    embed.setTitle("There are no anagrams right now!")
-                    embed.setDescription("If this has appeared, the bot most likely crashed, please let an Event Manager know.")
-                    await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
-                    break
+                    let embed = this.module.bot.embeds.failure("Responses Closed", "The time to respond has expired or not opened yet.")
+                    await interaction.reply({components: [embed], flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]})
                 }
-            }
+                return
+            case "closemodal":
+                if (this.acceptingResponses) {
+                    let team = this.module.getMemberTeam(interaction.member)
+                    if (team) {
+                        this.responses.get(team.id)!.set(interaction.user.id, interaction.fields.getTextInputValue("answer-text").toLowerCase())
+                        let embed = this.module.bot.embeds.success("Response Submitted", "Your answer has been submitted, please wait for the collective results to be posted.")
+                        await interaction.reply({components: [embed], flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]})
+                    } else {
+                        let embed = this.module.bot.embeds.failure("Response Not Submitted", "Please join a team before trying to respond.")
+                        await interaction.reply({components: [embed], flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]})
+                    }
+                } else {
+                    let embed = this.module.bot.embeds.failure("Responses Closed", "The time to respond has expired or not opened yet.")
+                    await interaction.reply({components: [embed], flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]})
+                }
+                return
         }
-    }
-
-    shuffle(array: Array<any>) {
-        let currentIndex = array.length;
-
-        // While there remain elements to shuffle...
-        while (currentIndex != 0) {
-
-            // Pick a remaining element...
-            let randomIndex = Math.floor(Math.random() * currentIndex);
-            currentIndex--;
-
-            // And swap it with the current element.
-            [array[currentIndex], array[randomIndex]] = [
-                array[randomIndex], array[currentIndex]];
-        }
-    }
-
-    async updateEvent(text: string) {
-        await super.updateEvent(text)
-        for (const team of Object.values(this.teams)) {
-            this.messageReferences[team.id].components[3].components[0].setLabel(text) // Editing String Select
-
-            await this.teamRefs[team.id].messages["Main"].edit({
-                components: [this.messageReferences[team.id]]
-            })
-        }
-    }
-
-    async finishEvent() {
-        for (const team of Object.values(this.teams)) {
-            const teamPoints = this.scores.teams[team.id].CorrectUsers.length * Number(this.currentQuestion!.reward)
-
-            this.messageReferences[team.id].components[3].components[0].setLabel("Time's up!")
-            this.messageReferences[team.id].components[3].components[0].setDisabled(true) // Disable button
-
-            await this.teamRefs[team.id].messages["Main"].edit({
-                components: [this.messageReferences[team.id]]
-            })
-
-            let resultMessage = await this.startResultMessage(team, `# ${this.name} Results`)
-            resultMessage.addTextDisplayComponents([
-                (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
-                    .setContent(`Between the teams, ${this.scores.globalCorrectCount} / ${this.scores.globalAnswerCount} got the question right.\nTeam ${team.name} answered ${this.scores.teams[team.id].CorrectUsers.length} / ${this.scores.teams[team.id].AnswerUsers.length} correctly.\n**+${teamPoints} points to Team ${team.name}.**`)
-            ])
-            resultMessage = await this.finishResultMessage(team, resultMessage)
-            await this.teamRefs[team.id].channel.send({
-                components: [resultMessage],
-                flags: [Discord.MessageFlags.IsComponentsV2]
-            })
-        }
-        this.currentQuestion = null
-        this.messageReferences = {}
-        this.log("Event Concluded")
     }
 }

@@ -1,23 +1,15 @@
+import DiscordBotModule, {DiscordBotModuleType, DiscordBotSubModule} from "../../module.js";
+import DiscordBot from "../../bot";
+import TeamsEvent, {TeamsEventType} from "./event.js";
 // @ts-ignore
 import * as Discord from "discord.js";
-import DiscordBot from "../../bot";
-import DiscordBotModule from "../../module.js";
-import {Team} from "./teams";
-import fs from "node:fs";
-import path from "path";
-import {TeamsEventType} from "./event";
-// @ts-ignore
-import {GoogleSpreadsheet, GoogleSpreadsheetWorksheet} from 'google-spreadsheet';
-// @ts-ignore
-import { JWT } from 'google-auth-library';
-import EventScheduler from "./scheduler.js";
 import TeamClass from "./team.js";
 
 export default class TeamsModule extends DiscordBotModule {
-    currentTeams: Discord.Collection<string, TeamClass> = new Discord.Collection()
     events: Discord.Collection<string, TeamsEventType> = new Discord.Collection()
-    spreadsheet: GoogleSpreadsheet
-    scheduler: EventScheduler | null = null;
+    currentTeams: Discord.Collection<string, TeamClass> = new Discord.Collection()
+    updateTimer: NodeJS.Timeout | undefined
+    currentEvent: TeamsEventType | undefined
 
     constructor(bot: DiscordBot, path: string) {
         super(bot, path, {
@@ -25,50 +17,39 @@ export default class TeamsModule extends DiscordBotModule {
             desc: "The framework for the discord teams.",
             colour: "red"
         })
-
-        const googleJWT = new JWT({
-            email: process.env.TEAMS_GOOGLE_EMAIL,
-            key: process.env.TEAMS_GOOGLE_PRIVATEKEY!.split(String.raw`\n`).join('\n'),
-            scopes: ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive.file'],
-        })
-        this.spreadsheet = new GoogleSpreadsheet(process.env.TEAMS_GOOGLE_SHEET, googleJWT)
     }
 
     async initialise() {
-        await this.mountEvents()
         await super.initialise()
-
-        let schedulerPath = process.env.TEAMS_SCHEDULER || ""
-
-        if (schedulerPath !== "") {
-            let {default: scheduler} = await import(path.join("file://", path.dirname(this.path), "schedulers", schedulerPath))
-            this.scheduler = new scheduler(this.bot, this)
-            if (this.scheduler !== null) {
-                await this.scheduler.start()
-            }
-        } else {
-            this.log(`No scheduler selected!`)
-        }
-
-
-        await this.updateCurrentTeams()
-        setInterval(this.updateCurrentTeams.bind(this), 1000*60*10)
+        await new TeamsEventSubModule(this).initialise()
+        await this.updateActiveTeams()
+        this.updateTimer = setInterval(async () => {
+            await this.updateActiveTeams()
+        }, 30*1000)
+        setTimeout(async () => {
+            let classConstructor = this.events.random()
+            this.currentEvent = await new classConstructor(this)
+            await this.currentEvent!.initialise()
+            await this.currentEvent!.prepareEvent()
+        }, 3*1000)
     }
 
     async deinitialise() {
-        if (this.scheduler !== null) {
-            await this.scheduler.stop()
-        }
-        await super.deinitialise();
+        await super.deinitialise()
+        clearInterval(this.updateTimer)
     }
 
     async onInteraction(interaction: Discord.Interaction, customId: string) {
         const interactionCustomIds = customId.split("-")
         switch (interactionCustomIds[0]) {
             case "events":
-                const eventInteractionCustomId = customId.replace(`events-${interactionCustomIds[1]}-`, "")
-                const eventClass = this.events.get(interactionCustomIds[1])
-                await eventClass.onInteraction(interaction, eventInteractionCustomId)
+                if (this.currentEvent) {
+                    const eventInteractionCustomId = customId.replace(`events-`, "")
+                    await this.currentEvent.onInteraction(interaction, eventInteractionCustomId)
+                } else {
+                    let embed = this.bot.embeds.failure("Interaction Failed", "There is no event active at the moment.")
+                    await interaction.reply({components: [embed], flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]})
+                }
                 return
             case "assignment":
                 await this.assignRandomTeam(interaction)
@@ -76,6 +57,24 @@ export default class TeamsModule extends DiscordBotModule {
             case "ping":
                 await this.togglePingPreference(interaction)
                 return
+        }
+    }
+
+    async updateActiveTeams() {
+        let teamsRequest = await fetch(`${process.env.API_HOST}/api/teams_v2/team/fetch`, {
+            method: "POST",
+            body: JSON.stringify({team_ids: []}),
+            headers: {"Content-type": "application/json"}
+        })
+        if (!teamsRequest.ok) {return false}
+        let teamsData = await teamsRequest.json()
+        if (teamsData.length > 0) {
+            this.currentTeams.clear()
+            for (const team of teamsData) {
+                let teamClass = new TeamClass(team)
+                await teamClass.fetchDiscordData(this.bot, team)
+                this.currentTeams.set(team.id, teamClass)
+            }
         }
     }
 
@@ -108,24 +107,20 @@ export default class TeamsModule extends DiscordBotModule {
     }
 
     async assignRandomTeam(interaction: Discord.ButtonInteraction) {
-        let embed = new Discord.EmbedBuilder()
+        let embed
         try {
             for (const team of this.currentTeams.values()) {
                 if (interaction.member.roles.cache.has(team.role)) {
-                    embed.setTitle("Failed to assign a team.")
-                    embed.setDescription("You already have a team.")
-                    embed.setColor(Discord.Colors.Red)
-                    await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
+                    embed = this.bot.embeds.failure("Failed to assign a team.", "You already have a team.")
+                    await interaction.reply({components: [embed], flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]})
                     return
                 }
             }
 
             let teamRatios = await this.getTeamRatioStringArray()
             if (teamRatios.length === 0) {
-                embed.setTitle("No teams available.")
-                embed.setDescription("Please try again later or contact a Councillor.")
-                embed.setColor(Discord.Colors.Purple)
-                await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
+                embed = this.bot.embeds.warning("No teams available.", "Please try again later or contact an Event Manager.")
+                await interaction.reply({components: [embed], flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]})
                 return
             }
 
@@ -134,34 +129,39 @@ export default class TeamsModule extends DiscordBotModule {
 
             await interaction.member.roles.add(selectedTeam.role)
 
-            embed.setTitle("Team Assigned")
-            embed.setDescription(`You have joined Team ${selectedTeam.name}, congrats!`)
-            embed.setColor(selectedTeam.colour)
-            embed.setThumbnail(selectedTeam.logo_url)
-            await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
+            embed = this.bot.embeds.thumbnail(
+                "",
+                "Team Assigned",
+                `You have joined Team ${selectedTeam.name}, congrats!`,
+                selectedTeam.logo_url,
+                selectedTeam.colour
+            )
+            await interaction.reply({components: [embed], flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]})
             return
         } catch (e) {
             this.log(e)
-            embed.setTitle("Failed to assign a team.")
-            embed.setDescription("Please try again later or contact an Event Manager.")
-            embed.setColor(Discord.Colors.Red)
-            await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
+            embed = this.bot.embeds.failure("Failed to assign a team.", "Please try again later or contact an Event Manager.")
+            await interaction.reply({components: [embed], flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]})
             return
         }
     }
 
-    async updateCurrentTeams() {
-        for (const teamId of JSON.parse(process.env.TEAMS_ACTIVE!) as Array<number>) {
-            let teamRequest = await fetch(`${process.env.API_HOST}/api/v1/modcorp/teams/fetch`, {
-                method: "POST",
-                body: JSON.stringify({"id": teamId}),
-                headers: {"Content-type": "application/json"}
-            })
-            let teamData = await teamRequest.json()
-            let teamClass = new TeamClass(teamData)
-            await teamClass.fetchDiscordData(this.bot, teamData)
-            this.currentTeams.set(teamData.id, teamClass)
+    async togglePingPreference(interaction: Discord.StringSelectMenuInteraction) {
+        let embed
+        try {
+            if (interaction.values[0] === "opt-in") {
+                await interaction.member.roles.add(process.env.TEAMS_PING_ROLE)
+                embed = this.bot.embeds.success("You have been assigned the Role.", "You can opt out at any time by re-pressing this button.")
+            } else if (interaction.values[0] === "opt-out") {
+                await interaction.member.roles.remove(process.env.TEAMS_PING_ROLE)
+                embed = this.bot.embeds.success("The Role has been removed.", "You can opt back in at any time by re-pressing this button.")
+            }
+        } catch (e) {
+            this.log(e)
+            embed = this.bot.embeds.failure("Failed to toggle your Role.", "Please try again later or contact an Event Manager.")
         }
+        await interaction.reply({components: [embed], flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]})
+        return
     }
 
     async buildTeamEmbed(team: TeamClass) {
@@ -179,10 +179,10 @@ export default class TeamsModule extends DiscordBotModule {
                 )
             )
             .addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)
-        if (team.server) {
+        if (team.guild) {
             message.addTextDisplayComponents([(textDisplay: Discord.TextDisplayBuilder) => textDisplay
                 .setContent(`
-                Guild: **${team.server.name}**\n-# ${team.server.id}
+                Guild: **${team.guild.name}**\n-# ${team.guild.id}
                 `)])
         } else {
             message.addTextDisplayComponents([(textDisplay: Discord.TextDisplayBuilder) => textDisplay
@@ -217,93 +217,55 @@ export default class TeamsModule extends DiscordBotModule {
         return message
     }
 
-    async mountEvents() {
-        const eventsPath = path.join(path.dirname(this.path), "events")
-        if (fs.existsSync(eventsPath)) {
-            const foundEvents = fs.readdirSync(eventsPath, { withFileTypes: true, recursive: true })
-                .filter(dirent => !dirent.isDirectory())
-                .map(dirent => dirent.name)
-            for (const event of foundEvents) {
-                let {default: eventClass} = await import(path.join("file://", eventsPath, event))
-                let newEvent = new eventClass(this.bot, this)
-                this.events.set(newEvent.commandName, newEvent)
-
-                this.log(`${this.bot.chalk.greenBright("Event")}: ${newEvent.name} ${this.bot.chalk.grey(`(${newEvent.commandName}) - ${newEvent.desc}`)}`)
-            }
-        } else {
-            this.log(`No events found.`)
-        }
+    getTeamInfoEmbed(team: TeamClass) {
+        return this.bot.embeds.thumbnail(
+            "Team Info",
+            team.name,
+            team.description,
+            team.logo_url,
+            Discord.resolveColor(team.colour)
+        )
     }
 
-    async triggerEvent(eventNames: Array<string> = [], invert: boolean = false) {
-        let eventName = ""
-        try {
-            let event: TeamsEventType
-            if (eventNames.length === 0) {
-                event = this.events.random()
-                eventName = event.commandName
-            } else if (invert) {
-                let events = this.events.keys().toArray()
-                while (true) {
-                    eventName = events[Math.floor(Math.random()*(events.length - 1))]
-                    if (!eventNames.includes(eventName)) {
-                        break
-                    }
-                }
-                event = this.events.get(eventName)
-            } else if (eventNames.length === 1) {
-                eventName = eventNames[0]
-                event = this.events.get(eventName)
-            } else {
-                eventName = eventNames[Math.floor(Math.random()*(eventNames.length))]
-                event = this.events.get(eventName)
-            }
-            if (!event) {
-                this.log(`Invalid Event given (${this.bot.chalk.redBright(eventName)}), cancelling trigger.`)
-                return
-            }
-
-            await event.prepareEvent()
-
-            for (const team of this.currentTeams.values()) {
-                await event.triggerEvent(team)
-            }
-        } catch (e) {
-            this.log(`Error Triggering ${this.bot.chalk.redBright(eventName)}`)
-            this.log(e)
-            return
-        }
-
+    getTeamHeaderEmbed(team: TeamClass, title: string, description: string) {
+        return this.bot.embeds.thumbnail(
+            team.name,
+            title,
+            description,
+            team.logo_url,
+            Discord.resolveColor(team.colour)
+        )
     }
 
-    async getSpreadsheet(sheetIndex: number) {
-        await this.spreadsheet.loadInfo()
-        let sheet: GoogleSpreadsheetWorksheet = this.spreadsheet.sheetsByIndex[sheetIndex]
-        await sheet.loadHeaderRow()
-        const headers = sheet.headerValues
-        return {document: this.spreadsheet, sheet: sheet, headers: headers}
+    getMemberTeam(member: Discord.GuildMember): TeamClass | undefined {
+        for (const team of this.currentTeams.values()) {
+            if (this.isMemberInTeam(member, team)) {
+                return team
+            }
+        }
+        return undefined
     }
 
-    async togglePingPreference(interaction: Discord.StringSelectMenuInteraction) {
-        let embed = new Discord.EmbedBuilder()
-        try {
-            if (interaction.values[0] === "opt-in") {
-                await interaction.member.roles.add(process.env.TEAMS_PING_ROLE)
-                embed.setDescription(`You have been assigned the role, you can opt out at any time!`)
-            } else if (interaction.values[0] === "opt-out") {
-                await interaction.member.roles.remove(process.env.TEAMS_PING_ROLE)
-                embed.setDescription(`You have had the role removed, you can opt back in at any time!`)
-            }
-            embed.setTitle("Notification Ping Role")
-            embed.setColor(Discord.Colors.Green)
+    isMemberInTeam(member: Discord.GuildMember, team: TeamClass): boolean {
+        return member.roles.cache.has(team.role.id)
+    }
+}
 
-        } catch (e) {
-            this.log(e)
-            embed.setTitle("Failed to assign a team.")
-            embed.setDescription("Please try again later or contact an Event Manager.")
-            embed.setColor(Discord.Colors.Red)
-        }
-        await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral})
-        return
+export class TeamsEventSubModule extends DiscordBotSubModule {
+
+    constructor(module: DiscordBotModuleType) {
+        super(module, "events")
+    }
+
+    async initialise() {
+        await super.initialise()
+    }
+
+    protected async registerFile(name: string, path: string, data: any) {
+        await super.registerFile(name, path, data)
+        let tempClass = new data() as TeamsEvent
+        await tempClass.initialise()
+        this.module.events.set(tempClass.commandName, data)
+        this.module.log(`${this.module.bot.chalk.greenBright("Event")}: ${tempClass.name} ${this.module.bot.chalk.grey(` - ${tempClass.description}`)}`)
     }
 }
