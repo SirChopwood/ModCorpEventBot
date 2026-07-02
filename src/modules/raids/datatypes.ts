@@ -5,9 +5,9 @@ export class RaidsData {
 
 export enum ERaidsClasses {
     Warrior,
-    //Berserker,
-    //Assassin,
-    //Sorcerer
+    Berserker,
+    Assassin,
+    Sorcerer
 }
 
 export enum ERaidsCharacteristics {
@@ -55,5 +55,7 @@ export type RaidsRoundOption = {
     characteristic: ERaidsCharacteristics
     // Value (roll + modifier) has to beat
     difficulty: number
+    // Icon to represent the option
+    emoji: string
 }
 

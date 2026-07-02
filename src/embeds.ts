@@ -6,15 +6,15 @@ export default class Permissions {
     }
 
     success(title: string, description: string = "") {
-        return this.generic(title, description, "", Discord.Colors.Green)
+        return this.generic(title, "", description, Discord.Colors.Green)
     }
 
     failure(title: string, description: string = "") {
-        return this.generic(title, description, "", Discord.Colors.Red)
+        return this.generic(title, "", description, Discord.Colors.Red)
     }
 
     warning(title: string, description: string = "") {
-        return this.generic(title, description, "", Discord.Colors.Yellow)
+        return this.generic(title, "", description, Discord.Colors.Yellow)
     }
 
     generic(title: string, author: string = "", description: string = "", colour: Discord.ColorResolvable = Discord.Colors.Blurple): Discord.ContainerBuilder {

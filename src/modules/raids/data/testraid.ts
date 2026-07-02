@@ -36,7 +36,8 @@ export class TestEncounter1 extends RaidsEncounter {
                         pass: "You slash at the creatures, dealing solid damage.",
                         fail: "You miss, taking damage from their counterattacks."
                     },
-                    difficulty: 10
+                    difficulty: 10,
+                    emoji: "⚔"
                 },
                 {
                     type: ERaidsRoundOptionType.SkillCheck,
@@ -46,7 +47,30 @@ export class TestEncounter1 extends RaidsEncounter {
                         pass: "Through careful sidestepping, you avoid taking any damage, watching as the enemies trip over eachother.",
                         fail: "Despite attempts to be careful, you take a few stray hits and are forced to backstep from the fight."
                     },
-                    difficulty: 10
+                    difficulty: 12,
+                    emoji: "🛡"
+                },
+                {
+                    type: ERaidsRoundOptionType.SkillCheck,
+                    characteristic: ERaidsCharacteristics.Universal,
+                    texts: {
+                        selection: "Roll the dice, see what happens.",
+                        pass: "Through careful sidestepping, you avoid taking any damage, watching as the enemies trip over each-other.",
+                        fail: "Despite attempts to be careful, you take a few stray hits and are forced to backstep from the fight."
+                    },
+                    difficulty: 6,
+                    emoji: "🎲"
+                },
+                {
+                    type: ERaidsRoundOptionType.AutoPass,
+                    characteristic: ERaidsCharacteristics.Universal,
+                    texts: {
+                        selection: "Make a run for the door.",
+                        pass: "You manage to escape and move on to the next chamber.",
+                        fail: "You manage to escape and move on to the next chamber."
+                    },
+                    difficulty: 0,
+                    emoji: "👟"
                 }
             ]
         },
@@ -66,7 +90,8 @@ export class TestEncounter1 extends RaidsEncounter {
                         pass: "You manage to escape and move on to the next chamber.",
                         fail: "You manage to escape and move on to the next chamber."
                     },
-                    difficulty: 0
+                    difficulty: 0,
+                    emoji: "👟"
                 },
                 {
                     type: ERaidsRoundOptionType.AutoFail,
@@ -76,7 +101,8 @@ export class TestEncounter1 extends RaidsEncounter {
                         pass: "You end up trapped in the room, left to fight away the horde as the party continues.",
                         fail: "You end up trapped in the room, left to fight away the horde as the party continues."
                     },
-                    difficulty: 0
+                    difficulty: 0,
+                    emoji: "⚔"
                 }
             ]
         }
@@ -106,17 +132,19 @@ export class TestEncounter2 extends RaidsEncounter {
                         pass: "You slash at the creatures, dealing solid damage.",
                         fail: "You miss, taking damage from their counterattacks."
                     },
-                    difficulty: 10
+                    difficulty: 10,
+                    emoji: "⚔"
                 },
                 {
                     type: ERaidsRoundOptionType.SkillCheck,
                     characteristic: ERaidsCharacteristics.Agility,
                     texts: {
                         selection: "Stand your ground, dodging their attacks.",
-                        pass: "Through careful sidestepping, you avoid taking any damage, watching as the enemies trip over eachother.",
+                        pass: "Through careful sidestepping, you avoid taking any damage, watching as the enemies trip over each-other.",
                         fail: "Despite attempts to be careful, you take a few stray hits and are forced to backstep from the fight."
                     },
-                    difficulty: 10
+                    difficulty: 10,
+                    emoji: "🛡"
                 }
             ]
         },
@@ -136,7 +164,8 @@ export class TestEncounter2 extends RaidsEncounter {
                         pass: "You manage to escape and move on to the next chamber.",
                         fail: "You manage to escape and move on to the next chamber."
                     },
-                    difficulty: 0
+                    difficulty: 0,
+                    emoji: "👟"
                 },
                 {
                     type: ERaidsRoundOptionType.AutoFail,
@@ -146,7 +175,8 @@ export class TestEncounter2 extends RaidsEncounter {
                         pass: "You end up trapped in the room, left to fight away the horde as the party continues.",
                         fail: "You end up trapped in the room, left to fight away the horde as the party continues."
                     },
-                    difficulty: 0
+                    difficulty: 0,
+                    emoji: "⚔"
                 }
             ]
         }

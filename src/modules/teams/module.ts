@@ -26,12 +26,12 @@ export default class TeamsModule extends DiscordBotModule {
         this.updateTimer = setInterval(async () => {
             await this.updateActiveTeams()
         }, 30*1000)
-        setTimeout(async () => {
-            let classConstructor = this.events.random()
-            this.currentEvent = await new classConstructor(this)
-            await this.currentEvent!.initialise()
-            await this.currentEvent!.prepareEvent()
-        }, 3*1000)
+        // setTimeout(async () => {
+        //     let classConstructor = this.events.random()
+        //     this.currentEvent = await new classConstructor(this)
+        //     await this.currentEvent!.initialise()
+        //     await this.currentEvent!.prepareEvent()
+        // }, 3*1000)
     }
 
     async deinitialise() {
