@@ -5,10 +5,11 @@ import * as Discord from "discord.js";
 import TeamsModule from "../teams/module.js";
 import TwitchModule from "../twitch/module.js";
 import {RaidsClassData} from "./data/classes.js";
+import {TestRaid} from "./data/testraid";
 
-export class RaidsCampaign extends RaidsData {
+export class RaidsRaid extends RaidsData {
     module: RaidsModule
-    name = "Undefined Campaign"
+    name = "Undefined Raid"
     encounters: Array<RaidsEncounter> = []
     encounterIndex = 0
     updateTimer: NodeJS.Timeout | undefined
@@ -26,10 +27,37 @@ export class RaidsCampaign extends RaidsData {
     }> = new Discord.Collection()
     teams: TeamsModule | undefined
     twitch: TwitchModule | undefined
+    id = -1
+    overlayData: {
+        bossBar: {
+            mode: "None" | "HP" | "Puzzle"
+            percentages: Record<string, number>
+        },
+        messages: {
+            announcement?: string,
+            title?: string,
+            subtitle?: string,
+        }
+        timer: {
+            mode: "None" | "Encounter" | "Paused"
+            start?: Date,
+            end?: Date
+        }
+    } = {
+        bossBar: {
+            mode: "None",
+            percentages: {}
+        },
+        messages: {},
+        timer: {
+            mode: "None",
+        }
+    }
 
-    constructor(module: RaidsModule) {
+    constructor(module: RaidsModule, id: number) {
         super()
         this.module = module
+        this.id = id
         this.userStats.set("110838934644211712", {
             class: ERaidsClasses.Warrior,
             team: 0,
@@ -52,7 +80,7 @@ export class RaidsCampaign extends RaidsData {
 
     async messageToAllTeams(message: Discord.ContainerBuilder) {
         try {
-            for (let team of this.teams!.currentTeams.values()) {
+            for await (let team of this.teams!.currentTeams.values()) {
                 await team.channel.send({
                     content: null,
                     components: [message],
@@ -64,28 +92,28 @@ export class RaidsCampaign extends RaidsData {
         }
     }
 
-    async startCampaign() {
+    async startRaid() {
         this.teams = await this.module.bot.requireModule("teams", TeamsModule)
         this.twitch = await this.module.bot.requireModule("twitch", TwitchModule)
 
-        this.log("Campaign Starting...")
+        this.log("Raid Starting...")
         if (this.encounters.length === 0) {
-            this.log("No Encounters found! Cancelling Campaign")
+            this.log("No Encounters found! Cancelling Raid")
             return
         }
 
-        await this.messageToAllTeams(this.createCampaignStartMessage())
+        await this.messageToAllTeams(this.createRaidStartMessage())
         setTimeout(async () => {await this.encounters[this.encounterIndex].startEncounter()}, 2000)
 
         this.updateTimer = setInterval(this.checkForUpdate.bind(this), 5000)
     }
 
-    async endCampaign() {
-        this.log(`Ending Campaign...`)
+    async endRaid() {
+        this.log(`Ending Raid...`)
         clearInterval(this.updateTimer)
-        await this.messageToAllTeams(this.createCampaignEndMessage())
-        this.log(`Campaign Ended`)
-        delete this.module.campaign
+        await this.messageToAllTeams(this.createRaidEndMessage())
+        this.log(`Raid Ended`)
+        delete this.module.raid
     }
 
     async checkForUpdate () {
@@ -93,27 +121,27 @@ export class RaidsCampaign extends RaidsData {
         if (encounter.complete) {
             await encounter.endEncounter() // End existing encounter
 
-            // If next encounter exists, start it, else end campaign
+            // If next encounter exists, start it, else end raid
             if (this.encounters.length > (this.encounterIndex + 1)) {
                 this.encounterIndex += 1
                 await this.encounters[this.encounterIndex].startEncounter()
             } else {
-                await this.endCampaign()
+                await this.endRaid()
             }
         }
     }
 
-    createCampaignStartMessage() {
+    createRaidStartMessage() {
         return this.module.bot.embeds.generic(
             this.name,
-            "*A new campaign is about to begin...*",
+            "*A new raid is about to begin...*",
             "Prepare yourselves for the first encounter soon!"
         )
     }
 
-    createCampaignEndMessage() {
+    createRaidEndMessage() {
         return this.module.bot.embeds.generic(
-            "The Campaign has ended...",
+            "The Raid has ended...",
             "",
             "Thank you for playing!"
         )
@@ -121,7 +149,7 @@ export class RaidsCampaign extends RaidsData {
 }
 
 export class RaidsEncounter extends RaidsData {
-    campaign: RaidsCampaign
+    raid: RaidsRaid
     name = "Undefined Encounter"
     texts = {
         title: "",
@@ -130,17 +158,17 @@ export class RaidsEncounter extends RaidsData {
     rounds: Array<RaidsRound> = []
     currentRoundIndex: number = -1
     complete = false
-    roundId: number = -1
+    roundId: string = ""
     acceptingInput = false
     interactionCache: Discord.Collection<Discord.Snowflake, Discord.StringSelectMenuInteraction> = new Discord.Collection()
 
-    constructor(campaign: RaidsCampaign) {
+    constructor(raid: RaidsRaid) {
         super()
-        this.campaign = campaign
+        this.raid = raid
     }
 
     log(...args: any[]) {
-        this.campaign.subLog(this.campaign.module.bot.chalk.green(this.name), ...args)
+        this.raid.subLog(this.raid.module.bot.chalk.green(this.name), ...args)
     }
 
     getCurrentRound() {
@@ -149,7 +177,7 @@ export class RaidsEncounter extends RaidsData {
 
     async startEncounter() {
         this.log(`Starting Encounter`)
-        await this.campaign.messageToAllTeams(this.createEncounterStartMessage())
+        await this.raid.messageToAllTeams(this.createEncounterStartMessage())
         await this.startRound()
     }
 
@@ -162,11 +190,38 @@ export class RaidsEncounter extends RaidsData {
             this.complete = true
             return
         }
-        this.roundId = Math.round(Math.random()*100000)
+
+        let res = await fetch(`${process.env.API_HOST}/api/raids_v2/raid/update`, {
+            method: "POST",
+            body: JSON.stringify({
+                token: process.env.API_TOKEN,
+                raid_id: this.raid.id,
+                encounterIndex: this.raid.encounterIndex,
+                roundIndex: this.currentRoundIndex
+            }),
+            headers: {"Content-type": "application/json"}
+        })
+        // if (res.ok) {
+        //     let data = await res.json()
+        //     if (data && data.length > 0) {
+        //         this.raid = new TestRaid(this, data.id)
+        //         await this.raid.startRaid()
+        //         return true
+        //     }
+        //     return false
+        // } else {
+        //     this.log("Failed to fetch raid data.")
+        //     return false
+        // }
+
         this.currentRoundIndex += 1
-        await this.campaign.messageToAllTeams(this.createRoundStartMessage())
-        this.log(this.campaign.module.bot.chalk.bgGreenBright(`Round ${this.currentRoundIndex+1} Started`))
+        this.roundId = `${this.raid.id}-${this.raid.encounterIndex}-${this.currentRoundIndex}`
+
+        await this.raid.messageToAllTeams(this.createRoundStartMessage())
+        this.log(this.raid.module.bot.chalk.bgGreenBright(`Round ${this.currentRoundIndex+1} Started`))
+
         this.acceptingInput = true
+
         setTimeout(async () => {
             await this.endRound()
         }, 10 * 1000)
@@ -174,22 +229,22 @@ export class RaidsEncounter extends RaidsData {
 
     async endRound() {
         this.acceptingInput = false
-        await this.campaign.messageToAllTeams(this.campaign.module.bot.embeds.generic(
+        await this.raid.messageToAllTeams(this.raid.module.bot.embeds.generic(
             this.getCurrentRound().texts.preResult,
             `Round ${this.currentRoundIndex + 1} - ${this.getCurrentRound().name}`
         ))
-        this.log(this.campaign.module.bot.chalk.bold.whiteBright("=== START OF RESULTS ==="))
-        for (let userId of this.campaign.userStats.keys()) {
-            let user = this.campaign.userStats.get(userId)
-            let userDiscord = await this.campaign.module.client.users.fetch(userId)
+        this.log(this.raid.module.bot.chalk.bold.whiteBright("=== START OF RESULTS ==="))
+        for await (let userId of this.raid.userStats.keys()) {
+            let user = this.raid.userStats.get(userId)
+            let userDiscord = await this.raid.module.client.users.fetch(userId)
 
-            if (!user.choices[this.campaign.encounterIndex]
-            || !user.choices[this.campaign.encounterIndex][this.currentRoundIndex]) {
-                this.log(this.campaign.module.bot.chalk.italic.yellow(`${userDiscord.displayName}: N/A`))
+            if (!user.choices[this.raid.encounterIndex]
+            || !user.choices[this.raid.encounterIndex][this.currentRoundIndex]) {
+                this.log(this.raid.module.bot.chalk.italic.yellow(`${userDiscord.displayName}: N/A`))
                 continue
             }
 
-            let option = this.getCurrentRound().options[user.choices[this.campaign.encounterIndex][this.currentRoundIndex].choiceIndex]
+            let option = this.getCurrentRound().options[user.choices[this.raid.encounterIndex][this.currentRoundIndex].choiceIndex]
             let success = false
             let description = "FAILURE"
             switch (option.type) {
@@ -216,21 +271,21 @@ export class RaidsEncounter extends RaidsData {
             }
 
             if (success) {
-                this.log(this.campaign.module.bot.chalk.italic.greenBright(`${userDiscord.displayName} (${RaidsClassData[user.class as ERaidsClasses].name}): ${description}`))
+                this.log(this.raid.module.bot.chalk.italic.greenBright(`${userDiscord.displayName} (${RaidsClassData[user.class as ERaidsClasses].name}): ${description}`))
             } else {
-                this.log(this.campaign.module.bot.chalk.italic.redBright(`${userDiscord.displayName} (${RaidsClassData[user.class as ERaidsClasses].name}): ${description}`))
+                this.log(this.raid.module.bot.chalk.italic.redBright(`${userDiscord.displayName} (${RaidsClassData[user.class as ERaidsClasses].name}): ${description}`))
             }
 
             let interaction = this.interactionCache.get(userId)
             if (interaction) {
                 let message
                 if (success) {
-                    message = this.campaign.module.bot.embeds.success(
+                    message = this.raid.module.bot.embeds.success(
                         option.texts.pass,
                         description
                     )
                 } else {
-                    message = this.campaign.module.bot.embeds.failure(
+                    message = this.raid.module.bot.embeds.failure(
                         option.texts.fail,
                         description
                     )
@@ -243,20 +298,20 @@ export class RaidsEncounter extends RaidsData {
                 })
             }
         }
-        this.log(this.campaign.module.bot.chalk.bold.whiteBright("=== END OF RESULTS ==="))
-        await this.campaign.messageToAllTeams(this.campaign.module.bot.embeds.generic(
+        this.log(this.raid.module.bot.chalk.bold.whiteBright("=== END OF RESULTS ==="))
+        await this.raid.messageToAllTeams(this.raid.module.bot.embeds.generic(
             this.rounds[this.currentRoundIndex].texts.postResult,
             `Round ${this.currentRoundIndex + 1} - ${this.getCurrentRound().name}`
         ))
         this.interactionCache.clear()
-        this.log(this.campaign.module.bot.chalk.bgRedBright(`Round ${this.currentRoundIndex+1} Ended`))
+        this.log(this.raid.module.bot.chalk.bgRedBright(`Round ${this.currentRoundIndex+1} Ended`))
         setTimeout(async () => {
             await this.startRound()
         }, 20*1000)
     }
 
     createEncounterStartMessage() {
-        return this.campaign.module.bot.embeds.generic(
+        return this.raid.module.bot.embeds.generic(
             this.texts.title,
             "",
             this.texts.introduction
@@ -283,7 +338,7 @@ export class RaidsEncounter extends RaidsData {
             options.push(option)
         }
 
-        return this.campaign.module.bot.embeds.generic(
+        return this.raid.module.bot.embeds.generic(
             this.getCurrentRound().texts.opening,
             `Round ${this.currentRoundIndex + 1} - ${this.getCurrentRound().name}`
         ).addActionRowComponents((actionRow: Discord.ActionRowBuilder) => actionRow

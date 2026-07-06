@@ -1,13 +1,13 @@
-import {RaidsCampaign, RaidsEncounter} from "../raids.js";
+import {RaidsRaid, RaidsEncounter} from "../raids.js";
 import {ERaidsCharacteristics, ERaidsRoundOptionType} from "../datatypes.js";
 import RaidsModule from "../module.js";
 
 
-export class TestCampaign extends RaidsCampaign {
+export class TestRaid extends RaidsRaid {
     name = "Test Raid"
 
-    constructor(module: RaidsModule) {
-        super(module)
+    constructor(module: RaidsModule, id: number) {
+        super(module, id)
         this.encounters.push(new TestEncounter1(this))
         this.encounters.push(new TestEncounter2(this))
     }

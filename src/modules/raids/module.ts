@@ -3,15 +3,15 @@ import DiscordBot from "../../bot";
 // @ts-ignore
 import * as Discord from "discord.js";
 import {ERaidsClasses} from "./datatypes.js";
-import {RaidsCampaign} from "./raids.js";
-import {TestCampaign} from "./data/testraid.js";
+import {RaidsRaid} from "./raids.js";
+import {TestRaid} from "./data/testraid.js";
 import TwitchModule from "../twitch/module.js";
 import TeamsModule from "../teams/module.js";
 
 export default class RaidsModule extends DiscordBotModule {
     twitch: TwitchModule | undefined
     teams: TeamsModule | undefined
-    campaign: RaidsCampaign | undefined
+    raid: RaidsRaid | undefined
 
     constructor(bot: DiscordBot, path: string) {
         super(bot, path, {
@@ -25,9 +25,34 @@ export default class RaidsModule extends DiscordBotModule {
         await super.initialise();
 
         setTimeout(async () => {
-            this.campaign = new TestCampaign(this)
-            await this.campaign.startCampaign()
+            if (!await this.resumeRaid()) {
+                await this.createRaid()
+            }
         }, 2000)
+    }
+
+    async createRaid() {
+
+    }
+
+    async resumeRaid() {
+        let res = await fetch(`${process.env.API_HOST}/api/raids_v2/raid/fetch`, {
+            method: "POST",
+            body: JSON.stringify({}),
+            headers: {"Content-type": "application/json"}
+        })
+        if (res.ok) {
+            let data = await res.json()
+            if (data && data.length > 0) {
+                this.raid = new TestRaid(this, data.id)
+                await this.raid.startRaid()
+                return true
+            }
+            return false
+        } else {
+            this.log("Failed to fetch raid data.")
+            return false
+        }
     }
 
     override async postInit(): Promise<void> {
@@ -45,16 +70,16 @@ export default class RaidsModule extends DiscordBotModule {
         const interactionCustomIds = customId.split("-")
         switch (interactionCustomIds[0]) {
             case "encounter":
-                if (!this.campaign) {
+                if (!this.raid) {
                     await interaction.reply({
                         content: null,
-                        components: [this.bot.embeds.failure("Campaign not Found", "Something went wrong, please try again or speak to Ramiris.")],
+                        components: [this.bot.embeds.failure("Raid not Found", "Something went wrong, please try again or speak to Ramiris.")],
                         flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
                     })
                     return
                 }
 
-                let currentEncounter = this.campaign.getCurrentEncounter()
+                let currentEncounter = this.raid.getCurrentEncounter()
                 if (!currentEncounter
                     || Number(interactionCustomIds[1]) !== currentEncounter.roundId) {
                     await interaction.reply({
@@ -84,7 +109,7 @@ export default class RaidsModule extends DiscordBotModule {
                     return
                 }
 
-                let user = this.campaign.userStats.get(interaction.user.id)
+                let user = this.raid.userStats.get(interaction.user.id)
                 if (!user) {
                     await interaction.reply({
                         content: null,
@@ -96,28 +121,46 @@ export default class RaidsModule extends DiscordBotModule {
                 let selectionIndex = Number(interaction.values[0])
                 let selection = currentRound.options[selectionIndex]
 
-                if (!user.choices[this.campaign.encounterIndex]) {
-                    user.choices[this.campaign.encounterIndex] = []
+                if (!user.choices[this.raid.encounterIndex]) {
+                    user.choices[this.raid.encounterIndex] = []
                 }
-                if (!user.choices[this.campaign.encounterIndex][currentEncounter.currentRoundIndex]) {
-                    user.choices[this.campaign.encounterIndex][currentEncounter.currentRoundIndex] = {
+                if (!user.choices[this.raid.encounterIndex][currentEncounter.currentRoundIndex]) {
+                    user.choices[this.raid.encounterIndex][currentEncounter.currentRoundIndex] = {
                         success: false,
                         choiceIndex: selectionIndex,
                         roll: -1
                     }
                 } else {
-                    user.choices[this.campaign.encounterIndex][currentEncounter.currentRoundIndex].choiceIndex = selectionIndex
+                    user.choices[this.raid.encounterIndex][currentEncounter.currentRoundIndex].choiceIndex = selectionIndex
                 }
 
-                this.campaign.userStats.set(interaction.user.id, user)
+                this.raid.userStats.set(interaction.user.id, user)
                 currentEncounter.interactionCache.set(interaction.user.id, interaction)
-
-                await interaction.reply({
-                    content: null,
-                    components: [this.bot.embeds.success("Selection Accepted", `"${selection.texts.selection}"`)],
-                    flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
+                let res = await fetch(`${process.env.API_HOST}/api/raids_v2/user/choice`, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        "token": process.env.API_TOKEN,
+                        "user_id": interaction.user.id,
+                        "raid_id": this.raid.id,
+                        "choices": user.choices
+                    }),
+                    headers: {"Content-type": "application/json"}
                 })
-                return
+                if (res.ok) {
+                    await interaction.reply({
+                        content: null,
+                        components: [this.bot.embeds.success("Selection Accepted", `"${selection.texts.selection}"`)],
+                        flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
+                    })
+                    return
+                } else {
+                    await interaction.reply({
+                        content: null,
+                        components: [this.bot.embeds.failure("Choice failed to save.", "Something went wrong, please try again or speak to Ramiris.")],
+                        flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
+                    })
+                    return
+                }
         }
     }
 }
