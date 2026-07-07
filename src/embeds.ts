@@ -1,7 +1,7 @@
 // @ts-ignore
 import * as Discord from "discord.js";
 
-export default class Permissions {
+export default class Embeds {
     constructor() {
     }
 

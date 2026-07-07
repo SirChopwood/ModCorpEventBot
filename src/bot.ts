@@ -23,6 +23,7 @@ export default class DiscordBot{
     chalk: ChalkInstance
     cooldowns = new Discord.Collection()
     logfile: fs.WriteStream
+    memberCountCache: Discord.Collection<Discord.Snowflake, Discord.Collection<Discord.Snowflake, number>> = new Discord.Collection()
 
     constructor() {
         if (!fs.existsSync(logDir)) {
@@ -251,11 +252,14 @@ export default class DiscordBot{
             type: activityTypes[process.env.BOT_STATUS_TYPE as string]
         })
 
-        for (let guild of this.client.guilds.cache.values()) {
-            this.botLog(`Forcing guild ${guild.name} to refresh`)
-            await guild.members.fetch({force: true})
-            this.botLog(`${this.chalk.magenta(guild.name)} - All Guild Members Fetched`)
-        }
+        // No longer needed due to privileged intents changes
+        // for (let guild of this.client.guilds.cache.values()) {
+        //     this.botLog(`Forcing guild ${guild.name} to refresh`)
+        //     await guild.members.fetch({force: true})
+        //     this.botLog(`${this.chalk.magenta(guild.name)} - All Guild Members Fetched`)
+        // }
+
+        await this.fetchAllGuildMemberCounts()
     }
 
     async requireModule<T extends DiscordBotModule>(moduleName: string, moduleType: new (...args: any[]) => T): Promise<T> {
@@ -269,5 +273,30 @@ export default class DiscordBot{
 
     async getModule<T extends DiscordBotModule>(moduleName: string, moduleType: new (...args: any[]) => T): Promise<T | undefined> {
         return this.modules.get(moduleName) as T | undefined
+    }
+
+    // TEMP ADDITION UNTIL DJS UPDATES
+    // Returns collection of "RoleID: Member Count"
+    async fetchGuildMemberCounts(guildId: Discord.Snowflake): Promise<Discord.Collection<Discord.Snowflake, number>> {
+        const data = await this.client.rest.get(`/guilds/${guildId}/roles/member-counts`)
+        this.memberCountCache.set(guildId, new Discord.Collection(Object.entries(data)))
+        return new Discord.Collection(Object.entries(data))
+    }
+
+    // Returns collection of "GuildID: (RoleID: Member Count)"
+    async fetchAllGuildMemberCounts(): Promise<Discord.Collection<Discord.Snowflake, Discord.Collection<Discord.Snowflake, number>>> {
+        let data = new Discord.Collection()
+        for await (let guild of this.client.guilds.cache.values()) {
+            data.set(guild.id, await this.fetchGuildMemberCounts(guild.id))
+        }
+        return data
+    }
+
+    getGuildMemberCounts(guildId: Discord.Snowflake): Promise<Discord.Collection<Discord.Snowflake, number>> {
+        return this.memberCountCache.get(guildId)
+    }
+
+    getAllGuildMemberCounts(): Promise<Discord.Collection<Discord.Snowflake, Discord.Collection<Discord.Snowflake, number>>> {
+        return this.memberCountCache
     }
 }

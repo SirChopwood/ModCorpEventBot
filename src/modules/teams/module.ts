@@ -4,8 +4,10 @@ import TeamsEvent, {TeamsEventType} from "./event.js";
 // @ts-ignore
 import * as Discord from "discord.js";
 import TeamClass from "./team.js";
+import Embeds from "./embeds.js";
 
 export default class TeamsModule extends DiscordBotModule {
+    embeds: Embeds
     events: Discord.Collection<string, TeamsEventType> = new Discord.Collection()
     currentTeams: Discord.Collection<string, TeamClass> = new Discord.Collection()
     updateTimer: NodeJS.Timeout | undefined
@@ -17,6 +19,7 @@ export default class TeamsModule extends DiscordBotModule {
             desc: "The framework for the discord teams.",
             colour: "red"
         })
+        this.embeds = new Embeds(this.bot)
     }
 
     async initialise() {
@@ -79,12 +82,22 @@ export default class TeamsModule extends DiscordBotModule {
     }
 
     async getTeamRatios() {
+        this.log(`Calculating all team Ratios/Member counts`)
         let memberCount: Record<string, number> = {}
         let maxValue = 0
+        //let totalCounts = await this.bot.fetchAllGuildMemberCounts()
         for (const team of this.currentTeams.values()) {
-            if (team.discord.server && team.discord.channel && team.discord.role) {
-                maxValue = Math.max(team.role.members.size, maxValue)
-                memberCount[team.id] = team.role.members.size
+            if (team.guild && team.channel && team.role) {
+                try {
+                    let roleCounts = await this.bot.getGuildMemberCounts(team.guild.id)
+                    let roleCount = roleCounts.get(team.role.id)
+                    maxValue = Math.max(roleCount, maxValue)
+                    memberCount[team.id] = roleCount
+                    this.log(this.bot.chalk.grey(`- [${team.id}] ${team.name} has ${this.bot.chalk.cyan(roleCount)} members.`))
+                } catch (e) {
+                    this.log(`Failed to find role count for team [${team.id}] ${team.name}.`)
+                    this.log(e)
+                }
             } else {
                 this.log(`Skipping team [${team.id}] ${team.name} as it has not been linked yet.`)
             }
@@ -109,9 +122,10 @@ export default class TeamsModule extends DiscordBotModule {
     async assignRandomTeam(interaction: Discord.ButtonInteraction) {
         let embed
         try {
+            await interaction.guild.members.fetch(interaction.user.id)
             for (const team of this.currentTeams.values()) {
-                if (interaction.member.roles.cache.has(team.role)) {
-                    embed = this.bot.embeds.failure("Failed to assign a team.", "You already have a team.")
+                if (interaction.member.roles.cache.has(team.role.id)) {
+                    embed = this.bot.embeds.failure("Failed to assign a team.", `You already a member of Team ${team.name}.`)
                     await interaction.reply({components: [embed], flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]})
                     return
                 }
@@ -127,14 +141,26 @@ export default class TeamsModule extends DiscordBotModule {
             const selectedTeamId = teamRatios[Math.floor(Math.random() * teamRatios.length)]
             let selectedTeam: TeamClass = this.currentTeams.get(Number(selectedTeamId))
 
+
             await interaction.member.roles.add(selectedTeam.role)
 
+            try {
+                let cache = this.bot.memberCountCache.get(selectedTeam.guild.id)
+                let value = cache!.get(selectedTeam.role.id)
+                cache!.set(selectedTeam.role.id, value+1)
+                this.bot.memberCountCache.set(selectedTeam.guild.id, cache)
+            } catch (e) {
+                this.log("Failed to update role cache")
+                this.log(e)
+            }
+
+            this.log(`Assigned ${interaction.member.displayName} to Team [${selectedTeam.id}] ${selectedTeam.name}`)
             embed = this.bot.embeds.thumbnail(
-                "",
                 "Team Assigned",
-                `You have joined Team ${selectedTeam.name}, congrats!`,
-                selectedTeam.logo_url,
-                selectedTeam.colour
+                `Welcome to Team ${selectedTeam.name}!`,
+                `Congratulations on joining your team, go ahead and join the other Team ${selectedTeam.name} campers.`,
+                selectedTeam.icon_url,
+                Discord.resolveColor(selectedTeam.colour)
             )
             await interaction.reply({components: [embed], flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]})
             return
@@ -164,79 +190,6 @@ export default class TeamsModule extends DiscordBotModule {
         return
     }
 
-    async buildTeamEmbed(team: TeamClass) {
-        let message = new Discord.ContainerBuilder()
-            .setAccentColor(Discord.resolveColor(team.colour))
-            .addSectionComponents((section: Discord.SectionBuilder) => section
-                .addTextDisplayComponents([
-                    (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
-                        .setContent(`# ${team.name}\n-# ID: ${team.id}`),
-                    (textDisplay: Discord.TextDisplayBuilder)=> textDisplay
-                        .setContent(team.description)
-                ])
-                .setThumbnailAccessory((thumbnail: Discord.ThumbnailBuilder) => thumbnail
-                    .setURL(team.logo_url)
-                )
-            )
-            .addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)
-        if (team.guild) {
-            message.addTextDisplayComponents([(textDisplay: Discord.TextDisplayBuilder) => textDisplay
-                .setContent(`
-                Guild: **${team.guild.name}**\n-# ${team.guild.id}
-                `)])
-        } else {
-            message.addTextDisplayComponents([(textDisplay: Discord.TextDisplayBuilder) => textDisplay
-                .setContent(`
-                Guild: **Guild Not Found!**
-                `)])
-        }
-        if (team.channel) {
-            message.addTextDisplayComponents([(textDisplay: Discord.TextDisplayBuilder) => textDisplay
-                .setContent(`
-                Channel: **#${team.channel.name}**\n-# ${team.channel.id}
-                `)])
-        } else {
-            message.addTextDisplayComponents([(textDisplay: Discord.TextDisplayBuilder) => textDisplay
-                .setContent(`
-                Channel: **Channel Not Found!**
-                `)])
-        }
-        if (team.role) {
-            message.addTextDisplayComponents([
-                (textDisplay: Discord.TextDisplayBuilder) => textDisplay
-                    .setContent(`
-                    Role: **@${team.role.name}**\n-# ${team.role.id}\nMember Count: ${team.role.members.size}
-                    `)
-            ])
-        } else {
-            message.addTextDisplayComponents([(textDisplay: Discord.TextDisplayBuilder) => textDisplay
-                .setContent(`
-                Role: **Role Not Found!**
-                `)])
-        }
-        return message
-    }
-
-    getTeamInfoEmbed(team: TeamClass) {
-        return this.bot.embeds.thumbnail(
-            "Team Info",
-            team.name,
-            team.description,
-            team.logo_url,
-            Discord.resolveColor(team.colour)
-        )
-    }
-
-    getTeamHeaderEmbed(team: TeamClass, title: string, description: string) {
-        return this.bot.embeds.thumbnail(
-            team.name,
-            title,
-            description,
-            team.logo_url,
-            Discord.resolveColor(team.colour)
-        )
-    }
-
     getMemberTeam(member: Discord.GuildMember): TeamClass | undefined {
         for (const team of this.currentTeams.values()) {
             if (this.isMemberInTeam(member, team)) {
@@ -263,7 +216,7 @@ export class TeamsEventSubModule extends DiscordBotSubModule {
 
     protected async registerFile(name: string, path: string, data: any) {
         await super.registerFile(name, path, data)
-        let tempClass = new data() as TeamsEvent
+        let tempClass = new data(this.module, {}) as TeamsEvent
         await tempClass.initialise()
         this.module.events.set(tempClass.commandName, data)
         this.module.log(`${this.module.bot.chalk.greenBright("Event")}: ${tempClass.name} ${this.module.bot.chalk.grey(` - ${tempClass.description}`)}`)

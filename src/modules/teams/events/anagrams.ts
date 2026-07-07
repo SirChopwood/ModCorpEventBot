@@ -22,8 +22,19 @@ export default class TeamsEventAnagrams extends TeamsEvent {
     responses: Discord.Collection<number, Discord.Collection<Discord.Snowflake, string>> = new Discord.Collection()
     acceptingResponses = false
 
-    constructor(module: TeamsModule) {
-        super(module)
+    constructor(module: TeamsModule, context: {question?: TeamsAnagramQuestion}) {
+        super(module, context)
+        if (context.question) {
+            this.setNewQuestion(context.question)
+        } else {
+            this.setNewQuestion({
+                author: "Ramiris",
+                reward: 5,
+                originalPhrase: "Hello There Val",
+                hint: "This is a supposed hint.",
+                image: "https://cdn.discordapp.com/attachments/1395279350403960922/1395279387426947184/redwood.png?ex=69f19a31&is=69f048b1&hm=1779ed3bebe125d07672a2ccef188aeb7e2be9102de626fb9f01798444043f3a&"
+            })
+        }
     }
 
     async prepareEvent() {
@@ -80,18 +91,11 @@ export default class TeamsEventAnagrams extends TeamsEvent {
 
     async prepareGlobal() {
         await super.prepareGlobal()
-        this.setNewQuestion({
-            author: "Ramiris",
-            reward: 5,
-            originalPhrase: "Hello There Val",
-            hint: "This is a supposed hint.",
-            image: "https://cdn.discordapp.com/attachments/1395279350403960922/1395279387426947184/redwood.png?ex=69f19a31&is=69f048b1&hm=1779ed3bebe125d07672a2ccef188aeb7e2be9102de626fb9f01798444043f3a&"
-        })
     }
 
     async prepareTeam(team: TeamClass) {
         this.responses.set(team.id, new Discord.Collection())
-        let embed = this.module.getTeamHeaderEmbed(team, "Question in 30s", `Prepare to answer one of the questions. You can work together or alone, points will be earned to help your team take the lead. Please, in the spirit of the game and fairness, do not use any external tools or aids to gain an unfair advantage. Good luck ${team.name}!`)
+        let embed = this.module.embeds.teamHeader(team, "Question in 30s", `Prepare to answer one of the questions. You can work together or alone, points will be earned to help your team take the lead. Please, in the spirit of the game and fairness, do not use any external tools or aids to gain an unfair advantage. Good luck ${team.name}!`)
         await team.channel.send({components: [embed], flags: Discord.MessageFlags.IsComponentsV2})
     }
 
@@ -103,7 +107,7 @@ export default class TeamsEventAnagrams extends TeamsEvent {
         let text = `# ${Discord.inlineCode(this.currentQuestion!.shuffledPhrase)}`
         if (this.currentQuestion?.hint) text += `\nHint: ||${this.currentQuestion!.hint}||`
 
-        let embed = this.module.getTeamHeaderEmbed(team, this.name, this.instructions)
+        let embed = this.module.embeds.teamHeader(team, this.name, this.instructions)
         embed.addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)
         embed.addSectionComponents((section: Discord.SectionBuilder) => section
                 .addTextDisplayComponents((textDisplay: Discord.TextDisplayBuilder) => textDisplay
@@ -146,7 +150,7 @@ export default class TeamsEventAnagrams extends TeamsEvent {
             desc = `As a team, you scored a total of ${teamScore} points, with ${teamPercentage}% of the team getting the answer correct.`
         }
 
-        let embed = this.module.getTeamHeaderEmbed(team, "Time is up!", desc)
+        let embed = this.module.embeds.teamHeader(team, "Time is up!", desc)
         await team.channel.send({components: [embed], flags: Discord.MessageFlags.IsComponentsV2})
     }
 

@@ -9,13 +9,15 @@ export interface TeamsEventType extends TeamsEvent {
 
 export default class TeamsEvent {
     module: TeamsModule
+    context: any
     name = "Undefined Event Name"
     description = "Undefined Event Description."
     instructions = "Do nothing."
     commandName: string = ""
 
-    constructor(module: TeamsModule) {
+    constructor(module: TeamsModule, context: any) {
         this.module = module
+        this.context = context
     }
 
     // Call immediately after construct

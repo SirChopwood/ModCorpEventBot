@@ -81,7 +81,7 @@ export default class RaidsModule extends DiscordBotModule {
 
                 let currentEncounter = this.raid.getCurrentEncounter()
                 if (!currentEncounter
-                    || Number(interactionCustomIds[1]) !== currentEncounter.roundId) {
+                    || interactionCustomIds[1] !== currentEncounter.roundId) {
                     await interaction.reply({
                         content: null,
                         components: [this.bot.embeds.failure("Encounter not Found", "Something went wrong, please try again or speak to Ramiris.")],
