@@ -35,8 +35,8 @@ export default class DiscordBot{
             intents: [
                 Discord.GatewayIntentBits.Guilds,
                 Discord.GatewayIntentBits.GuildMessages,
-                Discord.GatewayIntentBits.GuildMembers,
-                Discord.GatewayIntentBits.MessageContent,
+                // Discord.GatewayIntentBits.GuildMembers,
+                // Discord.GatewayIntentBits.MessageContent,
                 Discord.GatewayIntentBits.DirectMessages
             ],
             partials: [
@@ -252,7 +252,7 @@ export default class DiscordBot{
             type: activityTypes[process.env.BOT_STATUS_TYPE as string]
         })
 
-        // No longer needed due to privileged intents changes
+        //No longer needed due to privileged intents changes
         // for (let guild of this.client.guilds.cache.values()) {
         //     this.botLog(`Forcing guild ${guild.name} to refresh`)
         //     await guild.members.fetch({force: true})

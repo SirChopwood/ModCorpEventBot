@@ -11,73 +11,55 @@ export default class Embeds {
     }
 
     async teamInfo(team: TeamClass) {
-        let message = new Discord.ContainerBuilder()
-            .setAccentColor(Discord.resolveColor(team.colour))
-            .addSectionComponents((section: Discord.SectionBuilder) => section
-                .addTextDisplayComponents([
-                    (textDisplay: Discord.TextDisplayBuilder) => textDisplay
-                        .setContent(`# ${team.name}\n-# ID: ${team.id}`),
-                    (textDisplay: Discord.TextDisplayBuilder) => textDisplay
-                        .setContent(team.description)
-                ])
-                .setThumbnailAccessory((thumbnail: Discord.ThumbnailBuilder) => thumbnail
-                    .setURL(team.logo_url)
-                )
-            )
-            .addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)
+        let text = ""
         if (team.guild) {
-            message.addTextDisplayComponents([(textDisplay: Discord.TextDisplayBuilder) => textDisplay
-                .setContent(`
-                    Guild: **${team.guild.name}**\n-# ${team.guild.id}
-                    `)])
+            text += `Guild: **${team.guild.name}**\n-# ${team.guild.id}`
         } else {
-            message.addTextDisplayComponents([(textDisplay: Discord.TextDisplayBuilder) => textDisplay
-                .setContent(`
-                    Guild: **Guild Not Found!**
-                    `)])
+            text += `Guild: **Guild Not Found!**`
         }
         if (team.channel) {
-            message.addTextDisplayComponents([(textDisplay: Discord.TextDisplayBuilder) => textDisplay
-                .setContent(`
-                    Channel: **#${team.channel.name}**\n-# ${team.channel.id}
-                    `)])
+            text += `\n\nChannel: **#${team.channel.name}**\n-# ${team.channel.id}`
         } else {
-            message.addTextDisplayComponents([(textDisplay: Discord.TextDisplayBuilder) => textDisplay
-                .setContent(`
-                    Channel: **Channel Not Found!**
-                    `)])
+            text += `\n\nChannel: **Channel Not Found!**`
         }
         if (team.role) {
-            message.addTextDisplayComponents([
-                (textDisplay: Discord.TextDisplayBuilder) => textDisplay
-                    .setContent(`
-                        Role: **@${team.role.name}**\n-# ${team.role.id}
-                        `)
-            ])
-        } else {
-            message.addTextDisplayComponents([(textDisplay: Discord.TextDisplayBuilder) => textDisplay
-                .setContent(`
-                    Role: **Role Not Found!**
-                    `)])
-        }
-        if (team.guild && team.role) {
+            text += `\n\nRole: **@${team.role.name}**\n-# ${team.role.id}`
             let roleCounts = await this.bot.getGuildMemberCounts(team.guild.id)
-            message.addTextDisplayComponents([(textDisplay: Discord.TextDisplayBuilder) => textDisplay
-                .setContent(`
-                    Member Count: ${Discord.inlineCode(roleCounts.get(team.role.id))}
-                    `)])
+            text += `\nMember Count: ${Discord.inlineCode(roleCounts.get(team.role.id))}`
+        } else {
+            text += `\n\nRole: **Role Not Found!**`
         }
+        text += `\n\nScore: ${Discord.inlineCode(team.score)}`
+
+        let message = this.teamTitle(team, team.description)
+        message.addSeparatorComponents((separator: Discord.SeparatorBuilder) => separator)
+            .addTextDisplayComponents((textDisplay: Discord.TextDisplayBuilder) => textDisplay
+                .setContent(text)
+            )
         return message
     }
 
     teamHeader(team: TeamClass, title: string, description: string) {
         return this.bot.embeds.thumbnail(
-            team.name,
+            `[${team.id}] ${team.name}`,
             title,
             description,
             team.icon_url,
             Discord.resolveColor(team.colour)
         )
+    }
+
+    teamTitle(team: TeamClass, content: string) {
+        return new Discord.ContainerBuilder()
+            .setAccentColor(Discord.resolveColor(team.colour))
+            .addSectionComponents((section: Discord.SectionBuilder) => section
+                .addTextDisplayComponents((textDisplay: Discord.TextDisplayBuilder) => textDisplay
+                    .setContent(`## [${team.id}] ${team.name}\n${content}`)
+                )
+                .setThumbnailAccessory((thumbnail: Discord.ThumbnailBuilder) => thumbnail
+                    .setURL(team.icon_url)
+                )
+            )
     }
 
     signupBoard() {

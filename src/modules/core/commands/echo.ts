@@ -13,16 +13,17 @@ export default {
             .setRequired(true)
         ),
     async execute(bot: DiscordBot, interaction: Discord.ChatInputCommandInteraction) {
-        if (!bot.permissions.isAdmin(interaction.user)) {
-            let embed = new Discord.EmbedBuilder()
-                .setColor(Discord.Colors.Red)
-                .setTitle("You do not have permission for this!")
-            await interaction.reply({embeds: [embed], flags: Discord.MessageFlags.Ephemeral});
+        if (!bot.permissions.isAdmin(interaction.member)) {
+            await interaction.reply({
+                components: [bot.embeds.failure("Access Denied", "You do not have permission for this!")],
+                flags: [Discord.MessageFlags.Ephemeral, Discord.MessageFlags.IsComponentsV2]
+            })
+            return
         }
 
         await interaction.reply({
-            content: "Echoing...",
-            flags: [Discord.MessageFlags.Ephemeral]
+            components: [bot.embeds.success("Echoing...")],
+            flags: [Discord.MessageFlags.Ephemeral, Discord.MessageFlags.IsComponentsV2]
         })
         await interaction.channel.send(interaction.options.getString('text'))
     }
