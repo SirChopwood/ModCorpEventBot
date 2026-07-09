@@ -7,11 +7,16 @@ import {RaidsRaid} from "./raids.js";
 import {TestRaid} from "./data/testraid.js";
 import TwitchModule from "../twitch/module.js";
 import TeamsModule from "../teams/module.js";
+import Embeds from "./embeds.js";
+import {RaidsClassData} from "./data/classes.js";
 
 export default class RaidsModule extends DiscordBotModule {
+    embeds: Embeds
     twitch: TwitchModule | undefined
     teams: TeamsModule | undefined
     raid: RaidsRaid | undefined
+    classSelections: Discord.Collection<Discord.Snowflake, ERaidsClasses> = new Discord.Collection()
+    classSelectionInteractions: Discord.Collection<Discord.Snowflake, Discord.Interaction> = new Discord.Collection()
 
     constructor(bot: DiscordBot, path: string) {
         super(bot, path, {
@@ -19,6 +24,7 @@ export default class RaidsModule extends DiscordBotModule {
             desc: "Interactive Raids on Discord & Twitch.",
             colour: "blueBright"
         })
+        this.embeds = new Embeds(this.bot)
     }
 
     async initialise(): Promise<void> {
@@ -66,7 +72,7 @@ export default class RaidsModule extends DiscordBotModule {
         await super.deinitialise();
     }
 
-    async onInteraction(interaction: Discord.StringSelectMenuInteraction, customId: string) {
+    async onInteraction(interaction: Discord.Interaction, customId: string) {
         const interactionCustomIds = customId.split("-")
         switch (interactionCustomIds[0]) {
             case "encounter":
@@ -161,6 +167,68 @@ export default class RaidsModule extends DiscordBotModule {
                     })
                     return
                 }
+            case "class":
+                switch (interactionCustomIds[1]) {
+                    case "selection":
+                        this.classSelections.set(interaction.user.id, interaction.values[0])
+                        await this.updateClassSelectionDescription(interaction)
+                        return
+                    case "confirm":
+                        try {
+                            await this.setUserClass(interaction)
+                        } catch (error) {
+                            await interaction.reply({
+                                components: [this.bot.embeds.failure("Class Selection Not Saved.", "Something went wrong, please try again or speak to Ramiris.")],
+                                flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
+                            })
+                        }
+                        return
+                }
+                break
         }
     }
+
+    async createClassSelection(channel: Discord.GuildTextBasedChannel) {
+        await channel.send({
+            components: [await this.embeds.classSelectionHeader(RaidsClassData)],
+            flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
+        })
+    }
+
+    async updateClassSelectionDescription(interaction: Discord.StringSelectMenuInteraction) {
+        let previousInteraction = this.classSelectionInteractions.get(interaction.user.id)
+        let selection = this.classSelections.get(interaction.user.id)
+        if (previousInteraction) {
+            await previousInteraction.editReply({
+                components: [await this.embeds.classSelectionDescription(RaidsClassData, selection)],
+                flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
+            })
+            await interaction.deferUpdate()
+        } else {
+            await interaction.reply({
+                components: [await this.embeds.classSelectionDescription(RaidsClassData, selection)],
+                flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
+            })
+            this.classSelectionInteractions.set(interaction.user.id, interaction)
+        }
+    }
+
+    async setUserClass(interaction: Discord.ButtonInteraction){
+
+        let previousInteraction = this.classSelectionInteractions.get(interaction.user.id)
+        let selection = this.classSelections.get(interaction.user.id)
+        // @ts-ignore
+        let classData = RaidsClassData[selection]
+        this.log(`${this.bot.chalk.magenta(interaction.member.displayName)} has confirmed they will be a ${this.bot.chalk.yellow(classData.name)}`)
+        await interaction.reply({
+            components: [this.bot.embeds.success("Class Selected", `You will be a ${classData.name}.`)],
+            flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
+        })
+        await previousInteraction.editReply({
+            components: [await this.embeds.classSelectionDescription(RaidsClassData, selection)],
+            flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
+        })
+    }
+
+
 }

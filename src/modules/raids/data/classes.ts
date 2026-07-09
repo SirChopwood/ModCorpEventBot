@@ -11,7 +11,7 @@ export const RaidsClassData: Record<ERaidsClasses, RaidsClass> = {
             [ERaidsCharacteristics.Intelligence]: 0,
         },
         colour: "#ffbb00",
-        icon: ""
+        icon: "https://media.discordapp.net/attachments/1495902018970062920/1523877483051745381/PixelModcorp.png?ex=6a4faf40&is=6a4e5dc0&hm=f92ca645c8dda017663a5a9209f57f01e4c041ec3ab533fc92539677f0a2981d&=&format=webp&quality=lossless"
     },
     [ERaidsClasses.Berserker]: {
         name: "Berserker",
@@ -23,7 +23,7 @@ export const RaidsClassData: Record<ERaidsClasses, RaidsClass> = {
             [ERaidsCharacteristics.Intelligence]: -1,
         },
         colour: "#ff0000",
-        icon: ""
+        icon: "https://media.discordapp.net/attachments/1495902018970062920/1523877483051745381/PixelModcorp.png?ex=6a4faf40&is=6a4e5dc0&hm=f92ca645c8dda017663a5a9209f57f01e4c041ec3ab533fc92539677f0a2981d&=&format=webp&quality=lossless"
     },
     [ERaidsClasses.Assassin]: {
         name: "Assassin",
@@ -35,7 +35,7 @@ export const RaidsClassData: Record<ERaidsClasses, RaidsClass> = {
             [ERaidsCharacteristics.Intelligence]: -1,
         },
         colour: "#1b4e77",
-        icon: ""
+        icon: "https://media.discordapp.net/attachments/1495902018970062920/1523877483051745381/PixelModcorp.png?ex=6a4faf40&is=6a4e5dc0&hm=f92ca645c8dda017663a5a9209f57f01e4c041ec3ab533fc92539677f0a2981d&=&format=webp&quality=lossless"
     },
     [ERaidsClasses.Sorcerer]: {
         name: "Sorcerer",
@@ -47,6 +47,6 @@ export const RaidsClassData: Record<ERaidsClasses, RaidsClass> = {
             [ERaidsCharacteristics.Intelligence]: 2,
         },
         colour: "#44bb29",
-        icon: ""
+        icon: "https://media.discordapp.net/attachments/1495902018970062920/1523877483051745381/PixelModcorp.png?ex=6a4faf40&is=6a4e5dc0&hm=f92ca645c8dda017663a5a9209f57f01e4c041ec3ab533fc92539677f0a2981d&=&format=webp&quality=lossless"
     }
 }
