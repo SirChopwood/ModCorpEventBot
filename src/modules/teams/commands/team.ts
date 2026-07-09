@@ -233,7 +233,6 @@ export default {
             })
             return
         } else {
-            console.log(await fetchResponse!.text())
             await interaction.editReply({content: "Failed to lookup team."});
             return
         }

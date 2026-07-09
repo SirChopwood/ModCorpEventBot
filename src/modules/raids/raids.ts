@@ -5,7 +5,6 @@ import * as Discord from "discord.js";
 import TeamsModule from "../teams/module.js";
 import TwitchModule from "../twitch/module.js";
 import {RaidsClassData} from "./data/classes.js";
-import {TestRaid} from "./data/testraid";
 
 export class RaidsRaid extends RaidsData {
     module: RaidsModule
@@ -58,12 +57,12 @@ export class RaidsRaid extends RaidsData {
         super()
         this.module = module
         this.id = id
-        this.userStats.set("110838934644211712", {
-            class: ERaidsClasses.Warrior,
-            team: 0,
-            isHero: false,
-            choices: []
-        })
+        // this.userStats.set("110838934644211712", {
+        //     class: ERaidsClasses.Warrior,
+        //     team: 0,
+        //     isHero: false,
+        //     choices: []
+        // })
     }
 
     log(...args: any[]) {
@@ -76,6 +75,24 @@ export class RaidsRaid extends RaidsData {
 
     getCurrentEncounter() {
         return this.encounters[this.encounterIndex]
+    }
+
+    async updateUserData(userId: Discord.Snowflake) {
+        let res = await fetch(`${process.env.API_HOST}/api/raids_v2/user/fetch`, {
+            method: "POST",
+            body: JSON.stringify({
+                "user_id": userId,
+                "raid_id": this.id,
+            }),
+            headers: {"Content-type": "application/json"}
+        })
+        if (!res.ok) {
+            this.log(`${this.module.bot.chalk.redBright("Failed to update user data of ID ")} ${this.module.bot.chalk.magenta(userId)}`)
+            return
+        }
+        let data = await res.json()
+        this.userStats.set(userId, data[0])
+        this.log(`Updated user data of ID ${this.module.bot.chalk.magenta(userId)}`)
     }
 
     async messageToAllTeams(message: Discord.ContainerBuilder) {
@@ -103,7 +120,8 @@ export class RaidsRaid extends RaidsData {
         }
 
         await this.messageToAllTeams(this.createRaidStartMessage())
-        setTimeout(async () => {await this.encounters[this.encounterIndex].startEncounter()}, 2000)
+        await this.messageToAllTeams(await this.module.embeds.classSelectionHeader(RaidsClassData))
+        setTimeout(async () => {await this.encounters[this.encounterIndex].startEncounter()}, this.module.timings.classSelection * 60 * 1000)
 
         this.updateTimer = setInterval(this.checkForUpdate.bind(this), 5000)
     }
@@ -124,9 +142,14 @@ export class RaidsRaid extends RaidsData {
             // If next encounter exists, start it, else end raid
             if (this.encounters.length > (this.encounterIndex + 1)) {
                 this.encounterIndex += 1
-                await this.encounters[this.encounterIndex].startEncounter()
+                setTimeout(async () => {
+                    await this.encounters[this.encounterIndex].startEncounter()
+                }, this.module.timings.nextEncounter * 60 * 1000)
             } else {
-                await this.endRaid()
+                setTimeout(async () => {
+                    await this.endRaid()
+                }, this.module.timings.endRaid * 60 * 1000)
+
             }
         }
     }
@@ -135,7 +158,7 @@ export class RaidsRaid extends RaidsData {
         return this.module.bot.embeds.generic(
             this.name,
             "*A new raid is about to begin...*",
-            "Prepare yourselves for the first encounter soon!"
+            `Prepare yourselves for the first encounter ${Discord.time(new Date(Date.now() + (this.module.timings.classSelection * 60 * 1000)), Discord.TimestampStyles.RelativeTime)}`
         )
     }
 
@@ -224,7 +247,7 @@ export class RaidsEncounter extends RaidsData {
 
         setTimeout(async () => {
             await this.endRound()
-        }, 10 * 1000)
+        }, this.raid.module.timings.actionSelection * 60 * 1000)
     }
 
     async endRound() {
@@ -238,8 +261,10 @@ export class RaidsEncounter extends RaidsData {
             let user = this.raid.userStats.get(userId)
             let userDiscord = await this.raid.module.client.users.fetch(userId)
 
-            if (!user.choices[this.raid.encounterIndex]
-            || !user.choices[this.raid.encounterIndex][this.currentRoundIndex]) {
+            if (user.choices.length === 0
+                || !user.choices[this.raid.encounterIndex]
+                || !user.choices[this.raid.encounterIndex][this.currentRoundIndex])
+            {
                 this.log(this.raid.module.bot.chalk.italic.yellow(`${userDiscord.displayName}: N/A`))
                 continue
             }
@@ -307,7 +332,7 @@ export class RaidsEncounter extends RaidsData {
         this.log(this.raid.module.bot.chalk.bgRedBright(`Round ${this.currentRoundIndex+1} Ended`))
         setTimeout(async () => {
             await this.startRound()
-        }, 20*1000)
+        }, this.raid.module.timings.nextRound * 60 * 1000)
     }
 
     createEncounterStartMessage() {
