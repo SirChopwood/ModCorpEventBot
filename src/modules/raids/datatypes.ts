@@ -59,3 +59,33 @@ export type RaidsRoundOption = {
     emoji: string
 }
 
+export type RaidsUserData = {
+    user_id?: string
+    class: ERaidsClasses,
+    team: number,
+    isHero: boolean,
+    choices: Array<// Encounter Index
+        Array<{ // Round Index
+            choiceIndex: number,
+            roll: number,
+            success: boolean
+        }>
+    >
+}
+
+export type RaidsOverlayData = {
+    bossBar: {
+        mode: "None" | "HP" | "Puzzle"
+        percentages: Record<string, number>
+    },
+    messages: {
+        announcement?: string,
+        title?: string,
+        subtitle?: string,
+    }
+    timer: {
+        mode: "None" | "Encounter" | "Paused"
+        start?: Date,
+        end?: Date
+    }
+}

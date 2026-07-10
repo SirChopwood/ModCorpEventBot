@@ -1,4 +1,11 @@
-import {ERaidsCharacteristics, ERaidsClasses, ERaidsRoundOptionType, RaidsData, RaidsRound} from "./datatypes.js";
+import {
+    ERaidsCharacteristics,
+    ERaidsClasses,
+    ERaidsRoundOptionType,
+    RaidsData, RaidsOverlayData,
+    RaidsRound,
+    RaidsUserData
+} from "./datatypes.js";
 import RaidsModule from "./module.js";
 // @ts-ignore
 import * as Discord from "discord.js";
@@ -12,37 +19,11 @@ export class RaidsRaid extends RaidsData {
     encounters: Array<RaidsEncounter> = []
     encounterIndex = 0
     updateTimer: NodeJS.Timeout | undefined
-    userStats: Discord.Collection<Discord.Snowflake, {
-        class: ERaidsClasses,
-        team: number,
-        isHero: boolean,
-        choices: Array<// Encounter Index
-            Array<{ // Round Index
-                choiceIndex: number,
-                roll: number,
-                success: boolean
-            }>
-        >
-    }> = new Discord.Collection()
+    userStats: Discord.Collection<Discord.Snowflake, RaidsUserData> = new Discord.Collection()
     teams: TeamsModule | undefined
     twitch: TwitchModule | undefined
     id = -1
-    overlayData: {
-        bossBar: {
-            mode: "None" | "HP" | "Puzzle"
-            percentages: Record<string, number>
-        },
-        messages: {
-            announcement?: string,
-            title?: string,
-            subtitle?: string,
-        }
-        timer: {
-            mode: "None" | "Encounter" | "Paused"
-            start?: Date,
-            end?: Date
-        }
-    } = {
+    overlayData: RaidsOverlayData = {
         bossBar: {
             mode: "None",
             percentages: {}
@@ -53,16 +34,16 @@ export class RaidsRaid extends RaidsData {
         }
     }
 
-    constructor(module: RaidsModule, id: number) {
+    constructor(module: RaidsModule, id: number, encounterIndex?: number, roundIndex?: number) {
         super()
         this.module = module
         this.id = id
-        // this.userStats.set("110838934644211712", {
-        //     class: ERaidsClasses.Warrior,
-        //     team: 0,
-        //     isHero: false,
-        //     choices: []
-        // })
+        if (encounterIndex) {
+            this.encounterIndex = encounterIndex
+            if (roundIndex) {
+                this.encounters[encounterIndex].currentRoundIndex = roundIndex - 1
+            }
+        }
     }
 
     log(...args: any[]) {
@@ -71,6 +52,10 @@ export class RaidsRaid extends RaidsData {
 
     subLog(source: string, ...args: any[]) {
         this.module.log(`[${this.module.bot.chalk.cyan(this.name)}/${this.module.bot.chalk.greenBright(source)}]`, ...args)
+    }
+
+    async initialise() {
+        await this.updateAllUserData()
     }
 
     getCurrentEncounter() {
@@ -88,31 +73,77 @@ export class RaidsRaid extends RaidsData {
         })
         if (!res.ok) {
             this.log(`${this.module.bot.chalk.redBright("Failed to update user data of ID ")} ${this.module.bot.chalk.magenta(userId)}`)
-            return
+            return false
         }
         let data = await res.json()
         this.userStats.set(userId, data[0])
         this.log(`Updated user data of ID ${this.module.bot.chalk.magenta(userId)}`)
+        return true
+    }
+
+    async updateAllUserData() {
+        let res = await fetch(`${process.env.API_HOST}/api/raids_v2/user/fetch`, {
+            method: "POST",
+            body: JSON.stringify({
+                raid_id: this.id,
+            }),
+            headers: {"Content-type": "application/json"}
+        })
+        if (res.ok) {
+            let data = await res.json() as Array<RaidsUserData>
+            if (data) {
+                if (data.length > 0) {
+                    this.log(`Data found for ${data.length} users.`)
+                    for (let user of data) {
+                        this.userStats.set(user.user_id, user)
+                    }
+                } else {
+                    this.log("No existing user data found.")
+                }
+                return true
+            }
+            return false
+        } else {
+            this.log("Failed to fetch raid user data.")
+            return false
+        }
+    }
+
+    async updateOverlay(data: Partial<RaidsOverlayData>) {
+        Object.assign(this.overlayData, data)
+        let res = await fetch(`${process.env.API_HOST}/api/raids_v2/raid/overlay`, {
+            method: "POST",
+            body: JSON.stringify({
+                token: process.env.API_TOKEN,
+                raid_id: this.id,
+                bossBar: this.overlayData.bossBar,
+                messages: this.overlayData.messages,
+                timer: this.overlayData.timer
+            }),
+            headers: {"Content-type": "application/json"}
+        })
+        return res.ok
     }
 
     async messageToAllTeams(message: Discord.ContainerBuilder) {
-        try {
-            for await (let team of this.teams!.currentTeams.values()) {
-                await team.channel.send({
-                    content: null,
-                    components: [message],
-                    flags: [Discord.MessageFlags.IsComponentsV2]
-                })
-            }
-        } catch (e) {
-            this.log(e)
+        let messages: Array<Discord.Message> = []
+        for await (let team of this.teams!.currentTeams.values()) {
+            messages.push(await team.channel.send({
+                content: null,
+                components: [message],
+                flags: [Discord.MessageFlags.IsComponentsV2]
+            }))
         }
+        return messages
     }
 
     async startRaid() {
         this.teams = await this.module.bot.requireModule("teams", TeamsModule)
         this.twitch = await this.module.bot.requireModule("twitch", TwitchModule)
 
+        if (this.encounterIndex > 0) {
+            await this.encounters[this.encounterIndex].startEncounter()
+        }
         this.log("Raid Starting...")
         if (this.encounters.length === 0) {
             this.log("No Encounters found! Cancelling Raid")
@@ -121,7 +152,21 @@ export class RaidsRaid extends RaidsData {
 
         await this.messageToAllTeams(this.createRaidStartMessage())
         await this.messageToAllTeams(await this.module.embeds.classSelectionHeader(RaidsClassData))
-        setTimeout(async () => {await this.encounters[this.encounterIndex].startEncounter()}, this.module.timings.classSelection * 60 * 1000)
+        await this.updateOverlay({
+            messages: {
+                title: this.name,
+                subtitle: "Raid Starting"
+            },
+            timer: {
+                mode: "Encounter",
+                start: new Date(Date.now()),
+                end: new Date(Date.now() + this.module.timings.classSelection * 60 * 1000)
+            }
+        })
+
+        setTimeout(async () => {
+            await this.encounters[this.encounterIndex].startEncounter()
+        }, this.module.timings.classSelection * 60 * 1000)
 
         this.updateTimer = setInterval(this.checkForUpdate.bind(this), 5000)
     }
@@ -130,6 +175,20 @@ export class RaidsRaid extends RaidsData {
         this.log(`Ending Raid...`)
         clearInterval(this.updateTimer)
         await this.messageToAllTeams(this.createRaidEndMessage())
+        let res = await fetch(`${process.env.API_HOST}/api/raids_v2/raid/update`, {
+            method: "POST",
+            body: JSON.stringify({
+                token: process.env.API_TOKEN,
+                raid_id: this.id,
+                encounterIndex: this.encounterIndex,
+                roundIndex: -1,
+                active: false
+            }),
+            headers: {"Content-type": "application/json"}
+        })
+        if (!res.ok) {
+            this.log("Failed to update raid data.")
+        }
         this.log(`Raid Ended`)
         delete this.module.raid
     }
@@ -146,10 +205,7 @@ export class RaidsRaid extends RaidsData {
                     await this.encounters[this.encounterIndex].startEncounter()
                 }, this.module.timings.nextEncounter * 60 * 1000)
             } else {
-                setTimeout(async () => {
-                    await this.endRaid()
-                }, this.module.timings.endRaid * 60 * 1000)
-
+                await this.endRaid()
             }
         }
     }
@@ -184,6 +240,8 @@ export class RaidsEncounter extends RaidsData {
     roundId: string = ""
     acceptingInput = false
     interactionCache: Discord.Collection<Discord.Snowflake, Discord.StringSelectMenuInteraction> = new Discord.Collection()
+    roundStartContainer: Discord.ContainerBuilder | undefined
+    roundStartMessages: Array<Discord.Message> = []
 
     constructor(raid: RaidsRaid) {
         super()
@@ -201,6 +259,17 @@ export class RaidsEncounter extends RaidsData {
     async startEncounter() {
         this.log(`Starting Encounter`)
         await this.raid.messageToAllTeams(this.createEncounterStartMessage())
+        await this.raid.updateOverlay({
+            messages: {
+                title: this.texts.title,
+                subtitle: `Encounter ${this.raid.encounterIndex + 1}`
+            },
+            timer: {
+                mode: "Encounter",
+                start: new Date(Date.now()),
+                end: new Date(Date.now() + this.raid.module.timings.actionSelection * 60 * 1000)
+            }
+        })
         await this.startRound()
     }
 
@@ -214,36 +283,29 @@ export class RaidsEncounter extends RaidsData {
             return
         }
 
+        this.currentRoundIndex += 1
+        this.roundId = `${this.raid.id}-${this.raid.encounterIndex}-${this.currentRoundIndex}`
+
+        this.roundStartMessages = await this.raid.messageToAllTeams(this.createRoundStartMessage())
+        this.roundStartContainer = this.createRoundStartMessage(true)
+        this.log(this.raid.module.bot.chalk.bgGreenBright(`Round ${this.currentRoundIndex+1} Started`))
+
+        this.acceptingInput = true
+
         let res = await fetch(`${process.env.API_HOST}/api/raids_v2/raid/update`, {
             method: "POST",
             body: JSON.stringify({
                 token: process.env.API_TOKEN,
                 raid_id: this.raid.id,
                 encounterIndex: this.raid.encounterIndex,
-                roundIndex: this.currentRoundIndex
+                roundIndex: this.currentRoundIndex,
+                active: true
             }),
             headers: {"Content-type": "application/json"}
         })
-        // if (res.ok) {
-        //     let data = await res.json()
-        //     if (data && data.length > 0) {
-        //         this.raid = new TestRaid(this, data.id)
-        //         await this.raid.startRaid()
-        //         return true
-        //     }
-        //     return false
-        // } else {
-        //     this.log("Failed to fetch raid data.")
-        //     return false
-        // }
-
-        this.currentRoundIndex += 1
-        this.roundId = `${this.raid.id}-${this.raid.encounterIndex}-${this.currentRoundIndex}`
-
-        await this.raid.messageToAllTeams(this.createRoundStartMessage())
-        this.log(this.raid.module.bot.chalk.bgGreenBright(`Round ${this.currentRoundIndex+1} Started`))
-
-        this.acceptingInput = true
+        if (!res.ok) {
+            this.log("Failed to update raid data.")
+        }
 
         setTimeout(async () => {
             await this.endRound()
@@ -252,6 +314,13 @@ export class RaidsEncounter extends RaidsData {
 
     async endRound() {
         this.acceptingInput = false
+        for (let message of this.roundStartMessages) {
+            await message.edit({
+                components: [this.roundStartContainer],
+                flags: [Discord.MessageFlags.IsComponentsV2]
+            })
+        }
+
         await this.raid.messageToAllTeams(this.raid.module.bot.embeds.generic(
             this.getCurrentRound().texts.preResult,
             `Round ${this.currentRoundIndex + 1} - ${this.getCurrentRound().name}`
@@ -343,7 +412,7 @@ export class RaidsEncounter extends RaidsData {
         )
     }
 
-    createRoundStartMessage() {
+    createRoundStartMessage(disabled = false): Discord.ContainerBuilder {
         let options = []
         let optionsData = this.rounds[this.currentRoundIndex].options
         for (let optionIndex in optionsData) {
@@ -373,6 +442,7 @@ export class RaidsEncounter extends RaidsData {
                     .setRequired(true)
                     .setOptions(options)
                     .setPlaceholder("Select an Action.")
+                    .setDisabled(disabled)
             ])
         )
     }

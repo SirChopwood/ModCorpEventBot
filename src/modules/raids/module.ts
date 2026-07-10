@@ -1,10 +1,9 @@
-import DiscordBotModule from "../../module.js";
+import DiscordBotModule, {DiscordBotModuleType, DiscordBotSubModule} from "../../module.js";
 import DiscordBot from "../../bot";
 // @ts-ignore
 import * as Discord from "discord.js";
 import {ERaidsClasses} from "./datatypes.js";
 import {RaidsRaid} from "./raids.js";
-import {TestRaid} from "./data/testraid.js";
 import TwitchModule from "../twitch/module.js";
 import TeamsModule from "../teams/module.js";
 import Embeds from "./embeds.js";
@@ -19,15 +18,15 @@ export default class RaidsModule extends DiscordBotModule {
     classSelectionInteractions: Discord.Collection<Discord.Snowflake, Discord.Interaction> = new Discord.Collection()
     timings = { // AMOUNT OF MINUTES FOR EACH DELAY
         // Time between the raid being announced and the first encounter.
-        classSelection: 15/10,
+        classSelection: 15/5,
         // Time between the last encounter ending and the next starting.
-        nextEncounter: 10/10,
+        nextEncounter: 10/5,
         // Time between the last round ending and the next starting.
-        nextRound: 3/10,
+        nextRound: 3/5,
         // Time given to select an action for each round.
-        actionSelection: 5/10,
+        actionSelection: 5/5,
         // Delay after the final encounter to end the raid.
-        endRaid: 2/10
+        endRaid: 2/5
     }
 
     constructor(bot: DiscordBot, path: string) {
@@ -41,18 +40,35 @@ export default class RaidsModule extends DiscordBotModule {
 
     async initialise(): Promise<void> {
         await super.initialise();
-
-        setTimeout(async () => {
-            if (!await this.resumeRaid()) {
-                await this.createRaid()
-            }
-        }, 2000)
+        await new RaidsSubModule(this).initialise()
     }
 
-    async createRaid() {
-        this.raid = new TestRaid(this, Math.round(Math.random()*10000))
-        await this.raid.startRaid()
-        return true
+    async createRaid(classPath: string) {
+        let raids = this.subModules.get("raids") as RaidsSubModule
+        console.log(classPath)
+        if (!raids.raidClasses.has(classPath)) {
+            this.log(`Unable to locate raid ${classPath} to create`)
+            return false
+        }
+
+        let res = await fetch(`${process.env.API_HOST}/api/raids_v2/raid/create`, {
+            method: "POST",
+            body: JSON.stringify({
+                "token": process.env.API_TOKEN,
+                "path": classPath
+            }),
+            headers: {"Content-type": "application/json"}
+        })
+        if (res.ok) {
+            let data = await res.json()
+            if (data[0]) {
+                return await this.loadRaid(data[0].path, data[0].id)
+            }
+            return false
+        } else {
+            this.log("Failed to fetch raid data.")
+            return false
+        }
     }
 
     async resumeRaid() {
@@ -64,13 +80,30 @@ export default class RaidsModule extends DiscordBotModule {
         if (res.ok) {
             let data = await res.json()
             if (data && data.length > 0) {
-                this.raid = new TestRaid(this, data.id)
-                await this.raid.startRaid()
-                return true
+                return await this.loadRaid(data[0].path, data[0].id, data[0].encounterIndex, data[0].roundIndex)
             }
             return false
         } else {
             this.log("Failed to fetch raid data.")
+            return false
+        }
+    }
+
+    async loadRaid(classPath: string, raidId: number, encounterIndex?: number, roundIndex?: number) {
+        try {
+            let raids = this.subModules.get("raids") as RaidsSubModule
+            console.log(classPath)
+            if (!raids.raidClasses.has(classPath)) {
+                this.log(`Unable to locate raid ${classPath} to load.`)
+                return false
+            }
+            let raidClass = raids.raidClasses.get(classPath)
+            this.raid = new raidClass(this, raidId, encounterIndex, roundIndex) as RaidsRaid
+            await this.raid.initialise()
+            await this.raid.startRaid()
+            return true
+        } catch (error) {
+            this.log(error)
             return false
         }
     }
@@ -90,98 +123,8 @@ export default class RaidsModule extends DiscordBotModule {
         const interactionCustomIds = customId.split("-")
         switch (interactionCustomIds[0]) {
             case "encounter":
-                if (!this.raid) {
-                    await interaction.reply({
-                        content: null,
-                        components: [this.bot.embeds.failure("Raid not Found", "Something went wrong, please try again or speak to Ramiris.")],
-                        flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
-                    })
-                    return
-                }
-
-                let currentEncounter = this.raid.getCurrentEncounter()
-                if (!currentEncounter) {
-                    await interaction.reply({
-                        content: null,
-                        components: [this.bot.embeds.failure("Encounter not Found", "Something went wrong, please try again or speak to Ramiris.")],
-                        flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
-                    })
-                    return
-                }
-
-                if (!currentEncounter.acceptingInput) {
-                    await interaction.reply({
-                        content: null,
-                        components: [this.bot.embeds.failure("Round not accepting input", "Round has ended/is ending and is no longer accepting input.")],
-                        flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
-                    })
-                    return
-                }
-                let currentRound = currentEncounter?.getCurrentRound()
-                if (!currentRound ||
-                    currentEncounter.roundId !== `${this.raid.id}-${this.raid.encounterIndex}-${currentEncounter.currentRoundIndex}`
-                ) {
-                    await interaction.reply({
-                        content: null,
-                        components: [this.bot.embeds.failure("Round not Found", "Something went wrong, please try again or speak to Ramiris.")],
-                        flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
-                    })
-                    return
-                }
-
-                let user = this.raid.userStats.get(interaction.user.id)
-                if (!user) {
-                    await interaction.reply({
-                        content: null,
-                        components: [this.bot.embeds.failure("User not found", "Have you joined a team and picked a class first?")],
-                        flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
-                    })
-                    return
-                }
-                let selectionIndex = Number(interaction.values[0])
-                let selection = currentRound.options[selectionIndex]
-
-                if (!user.choices[this.raid.encounterIndex]) {
-                    user.choices[this.raid.encounterIndex] = []
-                }
-                if (!user.choices[this.raid.encounterIndex][currentEncounter.currentRoundIndex]) {
-                    user.choices[this.raid.encounterIndex][currentEncounter.currentRoundIndex] = {
-                        success: false,
-                        choiceIndex: selectionIndex,
-                        roll: -1
-                    }
-                } else {
-                    user.choices[this.raid.encounterIndex][currentEncounter.currentRoundIndex].choiceIndex = selectionIndex
-                }
-
-                this.raid.userStats.set(interaction.user.id, user)
-                currentEncounter.interactionCache.set(interaction.user.id, interaction)
-                let res = await fetch(`${process.env.API_HOST}/api/raids_v2/user/choice`, {
-                    method: "POST",
-                    body: JSON.stringify({
-                        "token": process.env.API_TOKEN,
-                        "user_id": interaction.user.id,
-                        "raid_id": this.raid.id,
-                        "choices": user.choices
-                    }),
-                    headers: {"Content-type": "application/json"}
-                })
-                if (res.ok) {
-                    await interaction.reply({
-                        content: null,
-                        components: [this.bot.embeds.success("Selection Accepted", `"${selection.texts.selection}"`)],
-                        flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
-                    })
-                    return
-                } else {
-                    await interaction.reply({
-                        content: null,
-                        components: [this.bot.embeds.failure("Choice failed to save.", "Something went wrong, please try again or speak to Ramiris.")],
-                        flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
-                    })
-                    this.log(res.status, res.statusText, res.text())
-                    return
-                }
+                await this.selectRoundAction(interaction)
+                break
             case "class":
                 switch (interactionCustomIds[1]) {
                     case "selection":
@@ -200,6 +143,101 @@ export default class RaidsModule extends DiscordBotModule {
                         return
                 }
                 break
+        }
+    }
+
+    async selectRoundAction(interaction: Discord.StringSelectMenuInteraction) {
+        if (!this.raid) {
+            await interaction.reply({
+                content: null,
+                components: [this.bot.embeds.failure("Raid not Found", "Something went wrong, please try again or speak to Ramiris.")],
+                flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
+            })
+            return
+        }
+
+        let currentEncounter = this.raid.getCurrentEncounter()
+        if (!currentEncounter) {
+            await interaction.reply({
+                content: null,
+                components: [this.bot.embeds.failure("Encounter not Found", "Something went wrong, please try again or speak to Ramiris.")],
+                flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
+            })
+            return
+        }
+
+        if (!currentEncounter.acceptingInput) {
+            await interaction.reply({
+                content: null,
+                components: [this.bot.embeds.failure("Round not accepting input", "Round has ended/is ending and is no longer accepting input.")],
+                flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
+            })
+            return
+        }
+        let currentRound = currentEncounter?.getCurrentRound()
+        if (!currentRound ||
+            currentEncounter.roundId !== `${this.raid.id}-${this.raid.encounterIndex}-${currentEncounter.currentRoundIndex}`
+        ) {
+            await interaction.reply({
+                content: null,
+                components: [this.bot.embeds.failure("Round not Found", "Something went wrong, please try again or speak to Ramiris.")],
+                flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
+            })
+            return
+        }
+
+        let user = this.raid.userStats.get(interaction.user.id)
+        if (!user) {
+            await interaction.reply({
+                content: null,
+                components: [this.bot.embeds.failure("User not found", "Have you joined a team and picked a class first?")],
+                flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
+            })
+            return
+        }
+        let selectionIndex = Number(interaction.values[0])
+        let selection = currentRound.options[selectionIndex]
+
+        if (!user.choices[this.raid.encounterIndex]) {
+            user.choices[this.raid.encounterIndex] = []
+        }
+        if (!user.choices[this.raid.encounterIndex][currentEncounter.currentRoundIndex]) {
+            user.choices[this.raid.encounterIndex][currentEncounter.currentRoundIndex] = {
+                success: false,
+                choiceIndex: selectionIndex,
+                roll: -1
+            }
+        } else {
+            user.choices[this.raid.encounterIndex][currentEncounter.currentRoundIndex].choiceIndex = selectionIndex
+        }
+
+        this.raid.userStats.set(interaction.user.id, user)
+        currentEncounter.interactionCache.set(interaction.user.id, interaction)
+        let res = await fetch(`${process.env.API_HOST}/api/raids_v2/user/choice`, {
+            method: "POST",
+            body: JSON.stringify({
+                "token": process.env.API_TOKEN,
+                "user_id": interaction.user.id,
+                "raid_id": this.raid.id,
+                "choices": user.choices
+            }),
+            headers: {"Content-type": "application/json"}
+        })
+        if (res.ok) {
+            await interaction.reply({
+                content: null,
+                components: [this.bot.embeds.success("Selection Accepted", `"${selection.texts.selection}"`)],
+                flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
+            })
+            return
+        } else {
+            await interaction.reply({
+                content: null,
+                components: [this.bot.embeds.failure("Choice failed to save.", "Something went wrong, please try again or speak to Ramiris.")],
+                flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
+            })
+            this.log(res.status, res.statusText, res.text())
+            return
         }
     }
 
@@ -260,7 +298,6 @@ export default class RaidsModule extends DiscordBotModule {
             "team_id": team.id,
             "isHero": false
         })
-        this.log(resData)
 
         let res = await fetch(`${process.env.API_HOST}/api/raids_v2/user/update`, {
             method: "POST",
@@ -287,6 +324,24 @@ export default class RaidsModule extends DiscordBotModule {
             flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
         })
     }
+}
 
+export class RaidsSubModule extends DiscordBotSubModule {
+    raidsModule: RaidsModule | undefined
+    raidClasses: Discord.Collection<string, RaidsRaid> = new Discord.Collection()
 
+    constructor(module: DiscordBotModuleType) {
+        super(module, "raids")
+    }
+
+    async initialise() {
+        this.raidsModule = await this.module.bot.requireModule("raids", RaidsModule)
+        await super.initialise()
+    }
+
+    protected async registerFile(name: string, path: string, data: any) {
+        await super.registerFile(name, path, data)
+        this.raidClasses.set(name.replace(".js", ""), data)
+        this.module.log(`${this.module.bot.chalk.blue("Raid")}: ${data.name}`)
+    }
 }

@@ -65,7 +65,7 @@ export default class Embeds {
                 .setButtonAccessory(
                     new Discord.ButtonBuilder()
                         .setCustomId("raids-class-confirm")
-                        .setLabel(`Click to select class: ${selection.name}`)
+                        .setLabel(`Click to confirm: ${selection.name}`)
                         .setStyle(Discord.ButtonStyle.Secondary)
                         .setDisabled(disabled)
                 )

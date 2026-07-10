@@ -3,7 +3,7 @@ import {ERaidsCharacteristics, ERaidsRoundOptionType} from "../datatypes.js";
 import RaidsModule from "../module.js";
 
 
-export class TestRaid extends RaidsRaid {
+export default class TestRaid extends RaidsRaid {
     name = "Test Raid"
 
     constructor(module: RaidsModule, id: number) {
