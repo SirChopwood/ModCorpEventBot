@@ -33,6 +33,11 @@ export class RaidsRaid extends RaidsData {
             mode: "None",
         }
     }
+    choiceTemplate: Array<Array<{
+        success: boolean,
+        choiceIndex: number,
+        roll: number
+    }>> = []
 
     constructor(module: RaidsModule, id: number, encounterIndex?: number, roundIndex?: number) {
         super()
@@ -55,6 +60,18 @@ export class RaidsRaid extends RaidsData {
     }
 
     async initialise() {
+        this.choiceTemplate = []
+        for (let encounter of this.encounters) {
+            let rounds = []
+            for (let round of encounter.rounds) {
+                rounds.push({
+                    success: false,
+                    choiceIndex: -1,
+                    roll: -1
+                })
+            }
+            this.choiceTemplate.push(rounds)
+        }
         await this.updateAllUserData()
     }
 
@@ -345,6 +362,7 @@ export class RaidsEncounter extends RaidsData {
                 case ERaidsRoundOptionType.SkillCheck:
                     let roll = Math.ceil(Math.random()*20)
                     description = `Roll: ${roll}`
+                    user.choices[this.raid.encounterIndex][this.currentRoundIndex].roll = roll
 
                     let rollModifier = RaidsClassData[user.class as ERaidsClasses].modifiers[option.characteristic]
                     let universalModifier = RaidsClassData[user.class as ERaidsClasses].modifiers[ERaidsCharacteristics.Universal]
@@ -357,9 +375,11 @@ export class RaidsEncounter extends RaidsData {
 
                     success = (roll + combinedModifier) >= option.difficulty
                     description += ` VS ${option.difficulty} => ${success ? "SUCCESS" : "FAILURE"}`
+                    user.choices[this.raid.encounterIndex][this.currentRoundIndex].success = success
                     break;
                 case ERaidsRoundOptionType.AutoPass:
                     success = true
+                    user.choices[this.raid.encounterIndex][this.currentRoundIndex].success = true
                     description = "SUCCESS"
                     break;
             }
@@ -369,6 +389,8 @@ export class RaidsEncounter extends RaidsData {
             } else {
                 this.log(this.raid.module.bot.chalk.italic.redBright(`${userDiscord.displayName} (${RaidsClassData[user.class as ERaidsClasses].name}): ${description}`))
             }
+
+            await this.raid.updateUserData(userId)
 
             let interaction = this.interactionCache.get(userId)
             if (interaction) {

@@ -18,15 +18,15 @@ export default class RaidsModule extends DiscordBotModule {
     classSelectionInteractions: Discord.Collection<Discord.Snowflake, Discord.Interaction> = new Discord.Collection()
     timings = { // AMOUNT OF MINUTES FOR EACH DELAY
         // Time between the raid being announced and the first encounter.
-        classSelection: 15/5,
+        classSelection: 15/15,
         // Time between the last encounter ending and the next starting.
-        nextEncounter: 10/5,
+        nextEncounter: 10/15,
         // Time between the last round ending and the next starting.
-        nextRound: 3/5,
+        nextRound: 3/15,
         // Time given to select an action for each round.
-        actionSelection: 5/5,
+        actionSelection: 5/15,
         // Delay after the final encounter to end the raid.
-        endRaid: 2/5
+        endRaid: 2/15
     }
 
     constructor(bot: DiscordBot, path: string) {
@@ -41,11 +41,11 @@ export default class RaidsModule extends DiscordBotModule {
     async initialise(): Promise<void> {
         await super.initialise();
         await new RaidsSubModule(this).initialise()
+        //await this.resumeRaid()
     }
 
     async createRaid(classPath: string) {
         let raids = this.subModules.get("raids") as RaidsSubModule
-        console.log(classPath)
         if (!raids.raidClasses.has(classPath)) {
             this.log(`Unable to locate raid ${classPath} to create`)
             return false
@@ -198,18 +198,10 @@ export default class RaidsModule extends DiscordBotModule {
         let selectionIndex = Number(interaction.values[0])
         let selection = currentRound.options[selectionIndex]
 
-        if (!user.choices[this.raid.encounterIndex]) {
-            user.choices[this.raid.encounterIndex] = []
+        if (user.choices.length === 0) {
+            user.choices = this.raid.choiceTemplate
         }
-        if (!user.choices[this.raid.encounterIndex][currentEncounter.currentRoundIndex]) {
-            user.choices[this.raid.encounterIndex][currentEncounter.currentRoundIndex] = {
-                success: false,
-                choiceIndex: selectionIndex,
-                roll: -1
-            }
-        } else {
-            user.choices[this.raid.encounterIndex][currentEncounter.currentRoundIndex].choiceIndex = selectionIndex
-        }
+        user.choices[this.raid.encounterIndex][currentEncounter.currentRoundIndex].choiceIndex = selectionIndex
 
         this.raid.userStats.set(interaction.user.id, user)
         currentEncounter.interactionCache.set(interaction.user.id, interaction)
@@ -284,24 +276,34 @@ export default class RaidsModule extends DiscordBotModule {
             return
         }
 
+        let existing = this.raid.userStats.get(interaction.user.id)
+        if (existing) {
+            // @ts-ignore
+            let classData = RaidsClassData[existing.class]
+            await interaction.reply({
+                components: [this.bot.embeds.failure("You already selected a class.", `You are a ${classData.name}.`)],
+                flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
+            })
+            return
+        }
+
         let previousInteraction = this.classSelectionInteractions.get(interaction.user.id)
         let selection = this.classSelections.get(interaction.user.id)
         // @ts-ignore
         let classData = RaidsClassData[selection]
 
-        let resData = JSON.stringify({
-            "token": process.env.API_TOKEN,
-            "user_name": interaction.user.displayName,
-            "user_id": interaction.user.id,
-            "raid_id": this.raid.id,
-            "class": Number(selection),
-            "team_id": team.id,
-            "isHero": false
-        })
-
-        let res = await fetch(`${process.env.API_HOST}/api/raids_v2/user/update`, {
+        let res = await fetch(`${process.env.API_HOST}/api/raids_v2/user/create`, {
             method: "POST",
-            body: resData,
+            body: JSON.stringify({
+                "token": process.env.API_TOKEN,
+                "user_name": interaction.user.displayName,
+                "user_id": interaction.user.id,
+                "raid_id": this.raid.id,
+                "class": Number(selection),
+                "team_id": team.id,
+                "isHero": false,
+                "choices": this.raid.choiceTemplate
+            }),
             headers: {"Content-type": "application/json"}
         })
         if (!res.ok) {
