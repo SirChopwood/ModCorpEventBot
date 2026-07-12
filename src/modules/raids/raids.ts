@@ -95,6 +95,7 @@ export class RaidsRaid extends RaidsData {
         let data = await res.json()
         this.userStats.set(userId, data[0])
         this.log(`Updated user data of ID ${this.module.bot.chalk.magenta(userId)}`)
+        console.log(JSON.stringify(data[0]))
         return true
     }
 
@@ -127,7 +128,7 @@ export class RaidsRaid extends RaidsData {
     }
 
     async updateOverlay(data: Partial<RaidsOverlayData>) {
-        Object.assign(this.overlayData, data)
+        this.overlayData = Object.assign(this.overlayData, data)
         let res = await fetch(`${process.env.API_HOST}/api/raids_v2/raid/overlay`, {
             method: "POST",
             body: JSON.stringify({
@@ -176,10 +177,15 @@ export class RaidsRaid extends RaidsData {
             },
             timer: {
                 mode: "Encounter",
-                start: new Date(Date.now()),
-                end: new Date(Date.now() + this.module.timings.classSelection * 60 * 1000)
+                start: new Date().getTime(),
+                end: new Date().getTime() + this.module.timings.classSelection * 60 * 1000
             }
         })
+        setTimeout(async () => {
+            await this.updateOverlay({
+                messages: {}
+            })
+        }, 10000)
 
         setTimeout(async () => {
             await this.encounters[this.encounterIndex].startEncounter()
@@ -206,8 +212,22 @@ export class RaidsRaid extends RaidsData {
         if (!res.ok) {
             this.log("Failed to update raid data.")
         }
-        this.log(`Raid Ended`)
-        delete this.module.raid
+        await this.updateOverlay({
+            messages: {
+                title: this.name,
+                subtitle: "Raid Ending"
+            },
+            timer: {
+                mode: "None"
+            }
+        })
+        setTimeout(async () => {
+            await this.updateOverlay({
+                messages: {}
+            })
+            this.log(`Raid Ended`)
+            delete this.module.raid
+        }, 10000)
     }
 
     async checkForUpdate () {
@@ -231,7 +251,7 @@ export class RaidsRaid extends RaidsData {
         return this.module.bot.embeds.generic(
             this.name,
             "*A new raid is about to begin...*",
-            `Prepare yourselves for the first encounter ${Discord.time(new Date(Date.now() + (this.module.timings.classSelection * 60 * 1000)), Discord.TimestampStyles.RelativeTime)}`
+            `Prepare yourselves for the first encounter ${Discord.time(new Date(new Date().getTime() + (this.module.timings.classSelection * 60 * 1000)), Discord.TimestampStyles.RelativeTime)}`
         )
     }
 
@@ -283,10 +303,17 @@ export class RaidsEncounter extends RaidsData {
             },
             timer: {
                 mode: "Encounter",
-                start: new Date(Date.now()),
-                end: new Date(Date.now() + this.raid.module.timings.actionSelection * 60 * 1000)
+                start: new Date().getTime(),
+                end: new Date().getTime() + (
+                    ((this.raid.module.timings.actionSelection * 60 * 1000) + (this.raid.module.timings.nextRound * 60 * 1000)
+                    ) * this.rounds.length)
             }
         })
+        setTimeout(async () => {
+            await this.raid.updateOverlay({
+                messages: {}
+            })
+        }, 10000)
         await this.startRound()
     }
 
@@ -343,75 +370,108 @@ export class RaidsEncounter extends RaidsData {
             `Round ${this.currentRoundIndex + 1} - ${this.getCurrentRound().name}`
         ))
         this.log(this.raid.module.bot.chalk.bold.whiteBright("=== START OF RESULTS ==="))
+        let answerCounts: Record<string, {pass: number, fail: number}> = {}
+
         for await (let userId of this.raid.userStats.keys()) {
-            let user = this.raid.userStats.get(userId)
+            let user = this.raid.userStats.get(userId) as RaidsUserData
             let userDiscord = await this.raid.module.client.users.fetch(userId)
-
-            if (user.choices.length === 0
-                || !user.choices[this.raid.encounterIndex]
-                || !user.choices[this.raid.encounterIndex][this.currentRoundIndex])
-            {
-                this.log(this.raid.module.bot.chalk.italic.yellow(`${userDiscord.displayName}: N/A`))
-                continue
-            }
-
-            let option = this.getCurrentRound().options[user.choices[this.raid.encounterIndex][this.currentRoundIndex].choiceIndex]
-            let success = false
-            let description = "FAILURE"
-            switch (option.type) {
-                case ERaidsRoundOptionType.SkillCheck:
-                    let roll = Math.ceil(Math.random()*20)
-                    description = `Roll: ${roll}`
-                    user.choices[this.raid.encounterIndex][this.currentRoundIndex].roll = roll
-
-                    let rollModifier = RaidsClassData[user.class as ERaidsClasses].modifiers[option.characteristic]
-                    let universalModifier = RaidsClassData[user.class as ERaidsClasses].modifiers[ERaidsCharacteristics.Universal]
-                    let combinedModifier = rollModifier + universalModifier
-                    if (combinedModifier > 0) {
-                        description += ` (+${combinedModifier})`
-                    } else if (combinedModifier < 0) {
-                        description += ` (${combinedModifier})`
-                    }
-
-                    success = (roll + combinedModifier) >= option.difficulty
-                    description += ` VS ${option.difficulty} => ${success ? "SUCCESS" : "FAILURE"}`
-                    user.choices[this.raid.encounterIndex][this.currentRoundIndex].success = success
-                    break;
-                case ERaidsRoundOptionType.AutoPass:
-                    success = true
-                    user.choices[this.raid.encounterIndex][this.currentRoundIndex].success = true
-                    description = "SUCCESS"
-                    break;
-            }
-
-            if (success) {
-                this.log(this.raid.module.bot.chalk.italic.greenBright(`${userDiscord.displayName} (${RaidsClassData[user.class as ERaidsClasses].name}): ${description}`))
-            } else {
-                this.log(this.raid.module.bot.chalk.italic.redBright(`${userDiscord.displayName} (${RaidsClassData[user.class as ERaidsClasses].name}): ${description}`))
-            }
-
-            await this.raid.updateUserData(userId)
-
-            let interaction = this.interactionCache.get(userId)
-            if (interaction) {
-                let message
-                if (success) {
-                    message = this.raid.module.bot.embeds.success(
-                        option.texts.pass,
-                        description
-                    )
-                } else {
-                    message = this.raid.module.bot.embeds.failure(
-                        option.texts.fail,
-                        description
-                    )
+            try {
+                if (user.choices.length === 0
+                    || !user.choices[this.raid.encounterIndex]
+                    || !user.choices[this.raid.encounterIndex][this.currentRoundIndex])
+                {
+                    this.log(this.raid.module.bot.chalk.italic.yellow(`${userDiscord.displayName}: N/A`))
+                    continue
                 }
 
-                await interaction.followUp({
-                    content: null,
-                    components: [message],
-                    flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
+                let option = this.getCurrentRound().options[user.choices[this.raid.encounterIndex][this.currentRoundIndex].choiceIndex]
+                if (!option) {
+                    this.log(this.raid.module.bot.chalk.italic.yellow(`${userDiscord.displayName}: N/A`))
+                    continue
+                }
+
+                let success = false
+                let description = "FAILURE"
+                switch (option.type) {
+                    case ERaidsRoundOptionType.SkillCheck:
+                        let roll = Math.ceil(Math.random()*20)
+                        description = `Roll: ${roll}`
+                        user.choices[this.raid.encounterIndex][this.currentRoundIndex].roll = roll
+
+                        let rollModifier = RaidsClassData[user.class as ERaidsClasses].modifiers[option.characteristic]
+                        let universalModifier = RaidsClassData[user.class as ERaidsClasses].modifiers[ERaidsCharacteristics.Universal]
+                        let combinedModifier = rollModifier + universalModifier
+                        if (combinedModifier > 0) {
+                            description += ` (+${combinedModifier})`
+                        } else if (combinedModifier < 0) {
+                            description += ` (${combinedModifier})`
+                        }
+
+                        success = (roll + combinedModifier) >= option.difficulty
+                        description += ` VS ${option.difficulty} => ${success ? "SUCCESS" : "FAILURE"}`
+                        user.choices[this.raid.encounterIndex][this.currentRoundIndex].success = success
+                        break;
+                    case ERaidsRoundOptionType.AutoPass:
+                        success = true
+                        user.choices[this.raid.encounterIndex][this.currentRoundIndex].success = true
+                        description = "SUCCESS"
+                        break;
+                }
+                if (success) {
+                    this.log(this.raid.module.bot.chalk.italic.greenBright(`${userDiscord.displayName} (${RaidsClassData[user.class as ERaidsClasses].name}): ${description}`))
+                    if (answerCounts[user.team_id]) {
+                        answerCounts[user.team_id].pass += 1
+                    } else {
+                        answerCounts[user.team_id] = {pass: 1, fail: 0}
+                    }
+                } else {
+                    this.log(this.raid.module.bot.chalk.italic.redBright(`${userDiscord.displayName} (${RaidsClassData[user.class as ERaidsClasses].name}): ${description}`))
+                    if (answerCounts[user.team_id]) {
+                        answerCounts[user.team_id].fail += 1
+                    } else {
+                        answerCounts[user.team_id] = {pass: 0, fail: 1}
+                    }
+                }
+
+                let res = await fetch(`${process.env.API_HOST}/api/raids_v2/user/choice`, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        "token": process.env.API_TOKEN,
+                        "user_id": user.user_id,
+                        "raid_id": this.raid.id,
+                        "choices": user.choices
+                    }),
+                    headers: {"Content-type": "application/json"}
                 })
+                if (!res.ok) {
+                    this.log(`Failed to upload choices of ${userId}`)
+                    this.log(await res.text())
+                }
+
+                let interaction = this.interactionCache.get(userId)
+                if (interaction) {
+                    let message
+                    if (success) {
+                        message = this.raid.module.bot.embeds.success(
+                            option.texts.pass,
+                            description
+                        )
+                    } else {
+                        message = this.raid.module.bot.embeds.failure(
+                            option.texts.fail,
+                            description
+                        )
+                    }
+
+                    await interaction.followUp({
+                        content: null,
+                        components: [message],
+                        flags: [Discord.MessageFlags.IsComponentsV2, Discord.MessageFlags.Ephemeral]
+                    })
+                }
+            } catch (e) {
+                this.log(`Failed to process choices of ${userId}`)
+                this.log(e)
             }
         }
         this.log(this.raid.module.bot.chalk.bold.whiteBright("=== END OF RESULTS ==="))
@@ -419,6 +479,26 @@ export class RaidsEncounter extends RaidsData {
             this.rounds[this.currentRoundIndex].texts.postResult,
             `Round ${this.currentRoundIndex + 1} - ${this.getCurrentRound().name}`
         ))
+
+        let passPercentages: Record<string, number> = {}
+        //let failPercentages: Record<string, number> = {}
+        let total = 0
+        for (let value of Object.values(answerCounts)) {
+            total += value.pass + value.fail
+        }
+        for (let teamId of Object.keys(answerCounts)) {
+            let team = this.raid.teams?.currentTeams.get(Number(teamId))
+            passPercentages[team.id] = (total / answerCounts[teamId].pass) * 100 | 0
+            //failPercentages[team.id] = (total / answerCounts[teamId].fail) * 100 | 0
+        }
+
+        await this.raid.updateOverlay({
+            bossBar: {
+                mode: "HP",
+                percentages: passPercentages//Object.assign(failPercentages, passPercentages),
+            }
+        })
+
         this.interactionCache.clear()
         this.log(this.raid.module.bot.chalk.bgRedBright(`Round ${this.currentRoundIndex+1} Ended`))
         setTimeout(async () => {

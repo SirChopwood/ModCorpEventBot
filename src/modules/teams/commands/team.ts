@@ -2,7 +2,7 @@
 import * as Discord from "discord.js";
 import DiscordBot from "../../../bot.js";
 import TeamClass from "../team.js";
-import TeamsModule from "../module";
+import TeamsModule from "../module.js";
 
 export default {
     data: new Discord.SlashCommandBuilder()
@@ -71,6 +71,30 @@ export default {
         .addSubcommand((subcommand: Discord.SlashCommandBuilder) => subcommand
             .setName('signup')
             .setDescription('[Admin] Create a signup board for users to be assigned their teams.')
+        )
+        .addSubcommand((subcommand: Discord.SlashCommandBuilder) => subcommand
+            .setName('award')
+            .setDescription('Award points to a given team.')
+            .addIntegerOption((option: Discord.SlashCommandIntegerOption) => option
+                .setName('id')
+                .setDescription('ID of the team to search for.')
+                .setRequired(true)
+            )
+            .addIntegerOption((option: Discord.SlashCommandIntegerOption) => option
+                .setName('amount')
+                .setDescription('Amount of points to award.')
+                .setRequired(true)
+            )
+            .addStringOption((option: Discord.SlashCommandIntegerOption) => option
+                .setName('reason')
+                .setDescription('Reason for the points.')
+                .setRequired(true)
+            )
+            .addUserOption((option: Discord.SlashCommandUserOption) => option
+                .setName('user')
+                .setDescription('The user to attribute the points to, if any.')
+                .setRequired(false)
+            )
         ),
 
     async execute(bot: DiscordBot, interaction: Discord.ChatInputCommandInteraction) {
@@ -87,6 +111,9 @@ export default {
                 break;
             case 'signup':
                 await this.signup(bot, interaction)
+                break;
+            case 'award':
+                await this.award(bot, interaction)
                 break;
         }
     },
@@ -317,5 +344,68 @@ export default {
             components: [bot.embeds.success("Success!", `${target.displayName} has been assigned to [${team.id}] Team ${team.name}`)],
             flags: [Discord.MessageFlags.Ephemeral, Discord.MessageFlags.IsComponentsV2]
         })
+    },
+
+    async award(bot: DiscordBot, interaction: Discord.ChatInputCommandInteraction){
+        if (!bot.permissions.isAdmin(interaction.member)) {
+            await interaction.reply({
+                components: [bot.embeds.failure("Access Denied", "You do not have permission for this!")],
+                flags: [Discord.MessageFlags.Ephemeral, Discord.MessageFlags.IsComponentsV2]
+            })
+            return
+        }
+
+        await interaction.reply({
+            components: [bot.embeds.generic("Awarding points...", "Please wait...")],
+            flags: [Discord.MessageFlags.Ephemeral, Discord.MessageFlags.IsComponentsV2]
+        })
+
+        let teams = await bot.requireModule("teams", TeamsModule)
+        let teamId = interaction.options.getInteger("id")
+        let selectedTeam = teams.currentTeams.get(teamId)
+
+        if (!selectedTeam) {
+            await interaction.editReply({
+                components: [bot.embeds.failure("Failed to give points", `Could not find team with ID ${teamId}.`)],
+                flags: [Discord.MessageFlags.Ephemeral, Discord.MessageFlags.IsComponentsV2]
+            })
+            return
+        }
+
+        let amount = interaction.options.getInteger("amount")
+        let targetUser = interaction.options.getMember("user")
+        let reason = interaction.options.getString("reason")
+
+        let bodyData = {
+            "token": process.env.API_TOKEN as string,
+            "user_ids": [] as Array<string>,
+            "team_id": teamId,
+            "score": amount,
+            "reason": reason,
+        }
+        if (targetUser) {
+            bodyData.user_ids.push(targetUser.id)
+        }
+
+        let res = await fetch(`${process.env.API_HOST}/api/teams_v2/score/add`, {
+            method: "POST",
+            body: JSON.stringify(bodyData),
+            headers: {"Content-type": "application/json"}
+        })
+
+        if (res.ok) {
+            await interaction.editReply({
+                components: [bot.embeds.success("Points Awarded", `Added ${amount} points to Team ${selectedTeam.name}.\nReason: "${reason}"`)],
+                flags: [Discord.MessageFlags.Ephemeral, Discord.MessageFlags.IsComponentsV2]
+            })
+            return
+        } else {
+            let resMessage = await res.text()
+            await interaction.editReply({
+                components: [bot.embeds.failure("Failed to give points", resMessage)],
+                flags: [Discord.MessageFlags.Ephemeral, Discord.MessageFlags.IsComponentsV2]
+            })
+            return
+        }
     },
 };

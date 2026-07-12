@@ -60,7 +60,10 @@ export type RaidsRoundOption = {
 }
 
 export type RaidsUserData = {
-    user_id?: string
+    id: number
+    user_id: string,
+    team_id: number,
+    raid_id: number,
     class: ERaidsClasses,
     team: number,
     isHero: boolean,
@@ -85,7 +88,7 @@ export type RaidsOverlayData = {
     }
     timer: {
         mode: "None" | "Encounter" | "Paused"
-        start?: Date,
-        end?: Date
+        start?: number,
+        end?: number
     }
 }
