@@ -12,6 +12,9 @@ export default class TeamsModule extends DiscordBotModule {
     currentTeams: Discord.Collection<string, TeamClass> = new Discord.Collection()
     updateTimer: NodeJS.Timeout | undefined
     currentEvent: TeamsEventType | undefined
+    eventTimer: NodeJS.Timeout | undefined
+    eventTimerRate = 30 * 60 * 1000 // EVERY 30 MINS  | 120000ms = 2m | 900000ms = 15m | 3600000ms = 1h
+    eventTimerRandom = Math.random() * (5 * 60 * 1000) // VARIANCE OF 0-5 MINS
 
     constructor(bot: DiscordBot, path: string) {
         super(bot, path, {
@@ -29,12 +32,19 @@ export default class TeamsModule extends DiscordBotModule {
         this.updateTimer = setInterval(async () => {
             await this.updateActiveTeams()
         }, 30*1000)
+        await this.startEventTimer()
         // setTimeout(async () => {
         //     let classConstructor = this.events.random()
         //     this.currentEvent = await new classConstructor(this)
         //     await this.currentEvent!.initialise()
         //     await this.currentEvent!.prepareEvent()
         // }, 3*1000)
+        // setTimeout(async () => {
+        //     let classConstructor = this.events.get("trivia")
+        //     this.currentEvent = await new classConstructor(this, {})
+        //     await this.currentEvent!.initialise()
+        //     await this.currentEvent!.prepareEvent()
+        // }, 5000)
     }
 
     async deinitialise() {
@@ -61,6 +71,36 @@ export default class TeamsModule extends DiscordBotModule {
                 await this.togglePingPreference(interaction)
                 return
         }
+    }
+
+    async startEventTimer() {
+        const nextEvent = this.eventTimerRate - new Date().getTime() % this.eventTimerRate // Gets ms until the next time gap period
+
+        this.eventTimer = setTimeout(this.startEventTimerLoop.bind(this), nextEvent)
+    }
+
+    async startEventTimerLoop() {
+        this.eventTimer = setInterval(this.delayedTriggerEvent.bind(this), this.eventTimerRate)
+        await this.triggerEvent()
+    }
+
+    async delayedTriggerEvent() {
+        this.log(`Starting random countdown of ${this.eventTimerRandom / 1000}s to next event.`)
+        setTimeout(this.triggerEvent.bind(this), this.eventTimerRandom)
+    }
+
+    async stopEventTimer() {
+        if (this.eventTimer) {
+            clearInterval(this.eventTimer)
+            this.eventTimer = undefined
+        }
+    }
+
+    async triggerEvent() {
+        let classConstructor = this.events.get("trivia")
+        this.currentEvent = await new classConstructor(this, {})
+        await this.currentEvent!.initialise()
+        await this.currentEvent!.prepareEvent()
     }
 
     async updateActiveTeams() {

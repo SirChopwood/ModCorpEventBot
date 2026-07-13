@@ -7,14 +7,19 @@ export enum ERaidsClasses {
     Warrior,
     Berserker,
     Assassin,
-    Sorcerer
+    Sorcerer,
+    Archer,
+    Cleric,
+    Alchemist
 }
 
 export enum ERaidsCharacteristics {
     Universal,
     Strength,
     Agility,
-    Intelligence
+    Intelligence,
+    Luck,
+    Perception
 }
 
 export enum ERaidsRoundOptionType {

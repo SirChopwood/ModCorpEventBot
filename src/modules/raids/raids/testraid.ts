@@ -17,7 +17,8 @@ export class TestEncounter1 extends RaidsEncounter {
     name = "This is the test encounter"
     texts = {
         title: "SOME BIG COOL ENCOUNTER NAME",
-        introduction: "Something happens and you stumble upon this encounter. The party prepares themselves for what is to come."
+        introduction: "Something happens and you stumble upon this encounter. The party prepares themselves for what is to come.",
+        ending: "Encounter is over"
     }
     rounds = [
         {
@@ -113,7 +114,8 @@ export class TestEncounter2 extends RaidsEncounter {
     name = "This is the second test"
     texts = {
         title: "SOME BIG COOL ENCOUNTER NAME ONCE AGAIN",
-        introduction: "Something happens and you stumble upon this encounter. The party prepares themselves for what is to come."
+        introduction: "Something happens and you stumble upon this encounter. The party prepares themselves for what is to come.",
+        ending: "Encounter is over"
     }
     rounds = [
         {
@@ -126,7 +128,7 @@ export class TestEncounter2 extends RaidsEncounter {
             options: [
                 {
                     type: ERaidsRoundOptionType.SkillCheck,
-                    characteristic: ERaidsCharacteristics.Strength,
+                    characteristic: ERaidsCharacteristics.Perception,
                     texts: {
                         selection: "Attack it head on.",
                         pass: "You slash at the creatures, dealing solid damage.",
@@ -137,7 +139,7 @@ export class TestEncounter2 extends RaidsEncounter {
                 },
                 {
                     type: ERaidsRoundOptionType.SkillCheck,
-                    characteristic: ERaidsCharacteristics.Agility,
+                    characteristic: ERaidsCharacteristics.Luck,
                     texts: {
                         selection: "Stand your ground, dodging their attacks.",
                         pass: "Through careful sidestepping, you avoid taking any damage, watching as the enemies trip over each-other.",

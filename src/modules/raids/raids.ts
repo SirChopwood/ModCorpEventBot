@@ -269,7 +269,8 @@ export class RaidsEncounter extends RaidsData {
     name = "Undefined Encounter"
     texts = {
         title: "",
-        introduction: ""
+        introduction: "",
+        ending: ""
     }
     rounds: Array<RaidsRound> = []
     currentRoundIndex: number = -1
@@ -319,6 +320,7 @@ export class RaidsEncounter extends RaidsData {
 
     async endEncounter() {
         this.log(`Ending Encounter`)
+        await this.raid.messageToAllTeams(this.createEncounterEndMessage())
     }
 
     async startRound() {
@@ -350,6 +352,23 @@ export class RaidsEncounter extends RaidsData {
         if (!res.ok) {
             this.log("Failed to update raid data.")
         }
+
+        await this.raid.updateOverlay({
+            messages: {
+                title: this.name,
+                subtitle: `Round ${this.currentRoundIndex + 1}`
+            },
+            timer: {
+                mode: "Encounter",
+                start: new Date().getTime(),
+                end: new Date().getTime() + (this.raid.module.timings.actionSelection * 60 * 1000)
+            }
+        })
+        setTimeout(async () => {
+            await this.raid.updateOverlay({
+                messages: {}
+            })
+        }, 10000)
 
         setTimeout(async () => {
             await this.endRound()
@@ -511,6 +530,14 @@ export class RaidsEncounter extends RaidsData {
             this.texts.title,
             "",
             this.texts.introduction
+        )
+    }
+
+    createEncounterEndMessage() {
+        return this.raid.module.bot.embeds.generic(
+            this.texts.title,
+            "",
+            this.texts.ending
         )
     }
 

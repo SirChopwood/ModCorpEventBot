@@ -356,7 +356,7 @@ export default {
         }
 
         await interaction.reply({
-            components: [bot.embeds.generic("Awarding points...", "Please wait...")],
+            components: [bot.embeds.generic("Awarding points...", "", "Please wait...")],
             flags: [Discord.MessageFlags.Ephemeral, Discord.MessageFlags.IsComponentsV2]
         })
 
