@@ -161,6 +161,9 @@ export class RaidsRaid extends RaidsData {
 
         if (this.encounterIndex > 0) {
             await this.encounters[this.encounterIndex].startEncounter()
+            this.updateTimer = setInterval(this.checkForUpdate.bind(this), 5000)
+            this.log(`Resuming at encounter ${this.encounterIndex}`)
+            return
         }
         this.log("Raid Starting...")
         if (this.encounters.length === 0) {
@@ -541,12 +544,20 @@ export class RaidsEncounter extends RaidsData {
         )
     }
 
+    cropString(string: string) {
+        let length = 50;
+        let trimmedString = string.length > length ?
+            string.substring(0, length - 3) + "..." :
+            string;
+        return trimmedString
+    }
+
     createRoundStartMessage(disabled = false): Discord.ContainerBuilder {
         let options = []
         let optionsData = this.rounds[this.currentRoundIndex].options
         for (let optionIndex in optionsData) {
             let option = new Discord.StringSelectMenuOptionBuilder()
-                .setLabel(optionsData[optionIndex].texts.selection)
+                .setLabel(this.cropString(optionsData[optionIndex].texts.selection))
                 .setValue(`${optionIndex}`)
                 .setEmoji(optionsData[optionIndex].emoji)
 

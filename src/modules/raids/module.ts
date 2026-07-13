@@ -18,15 +18,15 @@ export default class RaidsModule extends DiscordBotModule {
     classSelectionInteractions: Discord.Collection<Discord.Snowflake, Discord.Interaction> = new Discord.Collection()
     timings = { // AMOUNT OF MINUTES FOR EACH DELAY
         // Time between the raid being announced and the first encounter.
-        classSelection: 15/15,
+        classSelection: 5,
         // Time between the last encounter ending and the next starting.
-        nextEncounter: 10/15,
+        nextEncounter: 5,
         // Time between the last round ending and the next starting.
-        nextRound: 3/15,
+        nextRound: 3,
         // Time given to select an action for each round.
-        actionSelection: 5/15,
+        actionSelection: 3,
         // Delay after the final encounter to end the raid.
-        endRaid: 2/15
+        endRaid: 2
     }
 
     constructor(bot: DiscordBot, path: string) {
